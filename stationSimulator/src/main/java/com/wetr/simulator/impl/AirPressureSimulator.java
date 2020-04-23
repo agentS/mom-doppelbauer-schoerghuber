@@ -1,4 +1,4 @@
 package com.wetr.simulator.impl;
 
-public class AirPressureSimulator {
+public class AirPressureSimulator extends SensorSimulator {
 }
