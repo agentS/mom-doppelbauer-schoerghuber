@@ -1,7 +1,7 @@
-package com.hydroponic.dal.jpa;
+package io.weatherStation.dal.jpa;
 
-import com.hydropondic.dal.Dao;
-import com.hydropondic.util.TypeUtil;
+import io.weatherStation.dal.Dao;
+import io.weatherStation.util.TypeUtil;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;

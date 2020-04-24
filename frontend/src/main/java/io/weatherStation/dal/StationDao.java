@@ -1,4 +1,6 @@
 package io.weatherStation.dal;
 
-public class StationDao {
+import io.weatherStation.entity.Station;
+
+public interface StationDao extends Dao<Station, Long> {
 }

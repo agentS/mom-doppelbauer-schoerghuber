@@ -1,4 +1,4 @@
-package com.hydropondic.util;
+package io.weatherStation.util;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
