@@ -1,7 +1,9 @@
 package io.weatherStation.message;
 
+import io.smallrye.reactive.messaging.annotations.Broadcast;
 import io.weatherStation.dto.RecordDto;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+import org.eclipse.microprofile.reactive.messaging.Outgoing;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.json.bind.Jsonb;
@@ -11,14 +13,17 @@ import javax.json.bind.JsonbBuilder;
 public class AmqpConsumer {
 
     @Incoming("sensor-data")
-    public void process(String message) {
+    @Outgoing("record-stream")
+    @Broadcast
+    public String process(String message) {
         System.out.println("received: " + message);
-        Jsonb jsonBuilder = JsonbBuilder.create();
-        RecordDto record = jsonBuilder.fromJson(message, RecordDto.class);
+        //Jsonb jsonBuilder = JsonbBuilder.create();
+        //RecordDto record = jsonBuilder.fromJson(message, RecordDto.class);
 
-        System.out.println(record.getWeatherStationId());
-        System.out.println(record.getMeasurementDto().getTemperature());
-        System.out.println(record.getMeasurementDto().getHumidity());
-        System.out.println(record.getMeasurementDto().getAirPressure());
+        // System.out.println(record.getWeatherStationId());
+        // System.out.println(record.getMeasurementDto().getTemperature());
+        // System.out.println(record.getMeasurementDto().getHumidity());
+        // System.out.println(record.getMeasurementDto().getAirPressure());
+        return message;
     }
 }

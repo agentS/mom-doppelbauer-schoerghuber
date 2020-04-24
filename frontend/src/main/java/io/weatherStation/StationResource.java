@@ -1,7 +1,10 @@
 package io.weatherStation;
 
+import io.smallrye.reactive.messaging.annotations.Channel;
+import io.weatherStation.dto.RecordDto;
 import io.weatherStation.dto.StationDto;
 import io.weatherStation.manager.StationManager;
+import org.reactivestreams.Publisher;
 
 import javax.inject.Inject;
 import javax.ws.rs.*;
@@ -11,6 +14,10 @@ import java.util.List;
 @Path("/stations")
 public class StationResource {
     private StationManager stationManager;
+
+    @Inject
+    @Channel("record-stream")
+    Publisher<String> records;
 
     @Inject
     public StationResource(StationManager stationManager) {
@@ -42,5 +49,12 @@ public class StationResource {
     @Produces(MediaType.APPLICATION_JSON)
     public StationDto getById(@PathParam("id") Long id){
         return stationManager.findById(id);
+    }
+
+    @GET
+    @Path("/stream")
+    @Produces(MediaType.SERVER_SENT_EVENTS)
+    public Publisher<String> stream() {
+        return records;
     }
 }

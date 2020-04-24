@@ -1,8 +1,11 @@
 import React, { Component } from 'react';
 import axios from 'axios'
-import { Table, Button, Modal, ModalHeader, ModalBody, ModalFooter, Label, Input, FormGroup  } from 'reactstrap';
+import { Breadcrumb, BreadcrumbItem, Table, Button, Modal, ModalHeader, ModalBody, ModalFooter, Label, Input, FormGroup  } from 'reactstrap';
+
+const API_ENDPOINT_PREFIX = "http://localhost:8080/api";
 
 class App extends Component {
+
   constructor(props) {
     super(props);
     this.state = {
@@ -10,6 +13,15 @@ class App extends Component {
       isLoaded: false,
       newStationModal: false,
       editStationModal: false,
+      selectedStation: 1,
+      stationEvent: {
+        weatherStationId: 1,
+        measurement: {
+          temperature: null,
+          humidity: null,
+          airPressure: null
+        }
+      },
       stationData: {
         id: -1,
         name: ''
@@ -19,6 +31,19 @@ class App extends Component {
 
   componentDidMount() {
     this.findAllStations();
+    this.subscribeForStationData(this);
+  }
+
+  subscribeForStationData(ob){
+    var source = new EventSource(API_ENDPOINT_PREFIX + "/stations/stream");
+    source.onmessage = function (event) {
+      console.log(event.data);
+      let message = JSON.parse(event.data);
+      if(ob.state.selectedStation === message.weatherStationId){
+        ob.setState({ stationEvent: message });
+        console.log("set state");
+      }
+    };
   }
 
   toggleNewStationModal(){
@@ -30,7 +55,7 @@ class App extends Component {
   }
 
   findAllStations(){
-    axios.get('http://localhost:8080/api/stations')
+    axios.get(API_ENDPOINT_PREFIX + '/stations')
       .then(res => {
         let tmpStations = res.data;
         tmpStations.sort(function(a, b) {
@@ -44,7 +69,7 @@ class App extends Component {
   }
 
   addStation(){
-    axios.post('http://localhost:8080/api/stations', this.state.stationData)
+    axios.post(API_ENDPOINT_PREFIX + '/stations', this.state.stationData)
       .then(resp => {
         let { stations } = this.state;
         stations.push(resp.data);
@@ -55,7 +80,7 @@ class App extends Component {
   }
 
   updateStation(){
-    axios.put('http://localhost:8080/api/stations', this.state.stationData)
+    axios.put(API_ENDPOINT_PREFIX + '/stations', this.state.stationData)
       .then(resp => {
         this.findAllStations(); // reload stations
         this.setState({ editStationModal: false, stationData: {
@@ -74,6 +99,19 @@ class App extends Component {
     this.toggleEditStationModal();
   }
 
+  changeSelectedStation(id){
+    this.setState({ 
+      selectedStation: id,
+      stationEvent: {
+        weatherStationId: null,
+        measurement: {
+          temperature: null,
+          humidity: null,
+          airPressure: null
+        }
+      }});
+  }
+
   render() {
     var { isLoaded, stations } = this.state;
     if(!isLoaded) {
@@ -81,6 +119,11 @@ class App extends Component {
     } else {
       return (
         <div className="App">
+          <Breadcrumb>
+            <BreadcrumbItem active>
+              ({this.state.selectedStation}) {this.state.stationEvent.weatherStationId}: T{this.state.stationEvent.measurement.temperature} H{this.state.stationEvent.measurement.humidity} P{this.state.stationEvent.measurement.airPressure} 
+            </BreadcrumbItem>
+          </Breadcrumb>
           <Button color="primary" onClick={this.toggleNewStationModal.bind(this)}>+ add new station</Button>
           <Modal isOpen={this.state.newStationModal} toggle={this.toggleNewStationModal.bind(this)}>
             <ModalHeader toggle={this.toggleNewStationModal.bind(this)}>Add a new weather station</ModalHeader>
@@ -116,7 +159,7 @@ class App extends Component {
               <Button color="secondary" onClick={this.toggleEditStationModal.bind(this)}>Cancel</Button>
             </ModalFooter>
           </Modal>
-          <Table>
+          <Table hover>
             <thead>
               <tr>
                 <th>ID</th>
@@ -131,8 +174,10 @@ class App extends Component {
                     <td>{station.id}</td>
                     <td>{station.name}</td>
                     <td>
-                      <Button color="success" size="sm" className="mr-2" onClick={this.editStation.bind(this, station.id, station.name)}>Edit</Button>
-                      <Button color="success" size="sm">Subscribe</Button>
+                      <Button color="success" size="sm" className="mr-2" 
+                        onClick={this.editStation.bind(this, station.id, station.name)}>Edit</Button>
+                      <Button color="success" size="sm" 
+                        onClick={this.changeSelectedStation.bind(this, station.id)}>Select</Button>
                     </td>
                   </tr>
                 ))
