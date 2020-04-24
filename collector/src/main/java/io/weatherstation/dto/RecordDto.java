@@ -1,5 +1,7 @@
 package io.weatherstation.dto;
 
+import javax.json.bind.annotation.JsonbProperty;
+
 public final class RecordDto {
 	private long weatherStationId;
 	private MeasurementDto measurementDto;
@@ -20,6 +22,7 @@ public final class RecordDto {
 		this.weatherStationId = weatherStationId;
 	}
 
+	@JsonbProperty("measurement")
 	public MeasurementDto getMeasurementDto() {
 		return this.measurementDto;
 	}

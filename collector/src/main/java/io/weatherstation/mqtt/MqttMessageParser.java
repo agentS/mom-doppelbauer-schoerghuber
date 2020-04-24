@@ -18,10 +18,10 @@ public final class MqttMessageParser {
 			throw new IllegalArgumentException("The CSV record must exactly contain " + MeasurementDto.NUMBER_OF_SENSOR_VALUES + " senor value separated by '" + CSV_DELIMITER + "'");
 		}
 
-		MeasurementDto result = new MeasurementDto();
-		result.setTemperature(Double.parseDouble(sensorValues[0]));
-		result.setHumidity(Double.parseDouble(sensorValues[1]));
-		result.setAirPressure(Double.parseDouble(sensorValues[2]));
-		return result;
+		return new MeasurementDto(
+				Double.parseDouble(sensorValues[0]),
+				Double.parseDouble(sensorValues[1]),
+				Double.parseDouble(sensorValues[2])
+		);
 	}
 }
