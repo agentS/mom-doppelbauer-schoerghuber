@@ -12,6 +12,7 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.json.bind.Jsonb;
 import javax.json.bind.JsonbBuilder;
+import java.time.LocalDateTime;
 
 @ApplicationScoped
 public class MqttCollector {
@@ -23,13 +24,14 @@ public class MqttCollector {
 	}
 
 	@Incoming("mqtt-sensor-data")
-	@Outgoing("amqp-sensor-values")
+	@Outgoing("amqp-measurement-records")
 	@Broadcast
 	public String processMeasurement(MqttMessage<byte[]> message) {
 		long weatherStationId = MqttMessageParser.parseWeatherStationId(message.getTopic(), this.topicPrefix);
 		String payload = new String(message.getPayload());
 		MeasurementDto measurement = MqttMessageParser.parseMeasurementCsv(payload);
-		RecordDto record = new RecordDto(weatherStationId, measurement);
+		RecordDto record = new RecordDto(weatherStationId, LocalDateTime.now(), measurement);
+
 		Jsonb jsonBuilder = JsonbBuilder.create();
 		String recordJson = jsonBuilder.toJson(record);
 		System.out.println(recordJson);

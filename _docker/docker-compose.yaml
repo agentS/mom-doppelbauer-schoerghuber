@@ -8,8 +8,8 @@ services:
       - "61616:61616"
       - "5672:5672"
     environment:
-      ARTEMIS_USERNAME: quarkus
-      ARTEMIS_PASSWORD: quarkus
+      ARTEMIS_USERNAME: weatherdata
+      ARTEMIS_PASSWORD: thunderstorm
   eclipse-mosquitto:
     image: eclipse-mosquitto:1.6.9
     ports:
