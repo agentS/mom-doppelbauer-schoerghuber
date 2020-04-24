@@ -30,14 +30,14 @@ public class StationSimulator implements Simulator {
 
     @Override
     public String generateMessage() {
-        // {id};{temp};{humidity};{airPressure}
+        // {temp};{humidity};{airPressure}
         StringBuilder sb = new StringBuilder();
-        sb.append(id);
         for(Simulator sensor : sensors){
-            sb.append(";");
             String sensorMessage = sensor.generateMessage();
             sb.append(sensorMessage);
+            sb.append(";");
         }
+        sb.deleteCharAt(sb.length() - 1);
         return sb.toString();
     }
 }
