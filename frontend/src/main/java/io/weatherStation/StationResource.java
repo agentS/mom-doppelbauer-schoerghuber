@@ -15,10 +15,6 @@ import java.util.List;
 public class StationResource {
     private StationManager stationManager;
 
-    //@Inject
-    //@Channel("record-stream")
-    //Publisher<String> records;
-
     @Inject
     public StationResource(StationManager stationManager) {
         this.stationManager = stationManager;
@@ -50,11 +46,4 @@ public class StationResource {
     public StationDto getById(@PathParam("id") Long id){
         return stationManager.findById(id);
     }
-
-    //@GET
-    //@Path("/stream")
-    //@Produces(MediaType.SERVER_SENT_EVENTS)
-    //public Publisher<String> stream() {
-    //    return records;
-    //}
 }
