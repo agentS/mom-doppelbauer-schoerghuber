@@ -148,7 +148,7 @@ class App extends Component {
               ({this.state.selectedStation}) {this.state.stationEvent.weatherStationId}: T{this.state.stationEvent.measurement.temperature} H{this.state.stationEvent.measurement.humidity} P{this.state.stationEvent.measurement.airPressure} 
             </BreadcrumbItem>
           </Breadcrumb>
-          <Button color="primary" onClick={this.toggleNewStationModal.bind(this)}>+ add new station</Button>
+          <Button color="secondary" onClick={this.toggleNewStationModal.bind(this)}>+ add new station</Button>
           <Modal isOpen={this.state.newStationModal} toggle={this.toggleNewStationModal.bind(this)}>
             <ModalHeader toggle={this.toggleNewStationModal.bind(this)}>Add a new weather station</ModalHeader>
             <ModalBody>
@@ -198,9 +198,9 @@ class App extends Component {
                     <td>{station.id}</td>
                     <td>{station.name}</td>
                     <td>
-                      <Button color="success" size="sm" className="mr-2" 
+                      <Button color="secondary" size="sm" className="mr-2" 
                         onClick={this.editStation.bind(this, station.id, station.name)}>Edit</Button>
-                      <Button color="success" size="sm" 
+                      <Button color="secondary" size="sm" 
                         onClick={this.changeSelectedStation.bind(this, station.id)}>Select</Button>
                     </td>
                   </tr>
