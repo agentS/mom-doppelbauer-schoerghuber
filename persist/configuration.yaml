@@ -1,0 +1,13 @@
+postgresqlPersistence:
+  port: 5432
+  hostname: 127.0.0.1
+  database: weatherdata
+  username: lukas
+  password: Cisco0
+  poolSize: 5
+amqpConsumer:
+  host: 127.0.0.1
+  port: 5672
+  username: weatherdata
+  password: thunderstorm
+  queueName: measurement-records
