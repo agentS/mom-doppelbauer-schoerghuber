@@ -78,6 +78,11 @@
       <artifactId>openapi-generator-maven-plugin</artifactId>
       <version>${openapi.generator.version}</version>
     </dependency>
+
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-undertow-websockets</artifactId>
+    </dependency>
   </dependencies>
   <build>
     <plugins>

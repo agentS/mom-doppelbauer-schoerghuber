@@ -1,6 +1,6 @@
 package io.weatherStation.dto;
 
-public class StationDto {
+public final class StationDto {
     private Long id;
     private String name;
 

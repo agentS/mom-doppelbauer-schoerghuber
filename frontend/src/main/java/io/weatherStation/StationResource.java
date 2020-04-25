@@ -15,9 +15,9 @@ import java.util.List;
 public class StationResource {
     private StationManager stationManager;
 
-    @Inject
-    @Channel("record-stream")
-    Publisher<String> records;
+    //@Inject
+    //@Channel("record-stream")
+    //Publisher<String> records;
 
     @Inject
     public StationResource(StationManager stationManager) {
@@ -51,10 +51,10 @@ public class StationResource {
         return stationManager.findById(id);
     }
 
-    @GET
-    @Path("/stream")
-    @Produces(MediaType.SERVER_SENT_EVENTS)
-    public Publisher<String> stream() {
-        return records;
-    }
+    //@GET
+    //@Path("/stream")
+    //@Produces(MediaType.SERVER_SENT_EVENTS)
+    //public Publisher<String> stream() {
+    //    return records;
+    //}
 }

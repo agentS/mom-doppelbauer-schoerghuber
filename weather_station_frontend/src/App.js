@@ -3,6 +3,9 @@ import axios from 'axios'
 import { Breadcrumb, BreadcrumbItem, Table, Button, Modal, ModalHeader, ModalBody, ModalFooter, Label, Input, FormGroup  } from 'reactstrap';
 
 const API_ENDPOINT_PREFIX = "http://localhost:8080/api";
+const SOCKET_ENDPOINT_PREFIX = "ws://localhost:8080/stations/socket/";
+var connected = false;
+var socket;
 
 class App extends Component {
 
@@ -13,7 +16,7 @@ class App extends Component {
       isLoaded: false,
       newStationModal: false,
       editStationModal: false,
-      selectedStation: 1,
+      selectedStation: -1,
       stationEvent: {
         weatherStationId: 1,
         measurement: {
@@ -31,10 +34,10 @@ class App extends Component {
 
   componentDidMount() {
     this.findAllStations();
-    this.subscribeForStationData(this);
+    // this.subscribeForStationData(this);
   }
 
-  subscribeForStationData(ob){
+  /*subscribeForStationData(ob){
     var source = new EventSource(API_ENDPOINT_PREFIX + "/stations/stream");
     source.onmessage = function (event) {
       console.log(event.data);
@@ -44,7 +47,27 @@ class App extends Component {
         console.log("set state");
       }
     };
-  }
+  }*/
+
+  connectToStationSocket(stationId, ob) {
+    if(connected){
+        socket.close();
+        connected = false;
+    }
+    if (! connected) {
+        console.log("stationId: " + stationId);
+        socket = new WebSocket(SOCKET_ENDPOINT_PREFIX + stationId);
+        socket.onopen = function() {
+            connected = true;
+            console.log("Connected to the web socket");
+        };
+        socket.onmessage =function(m) {
+            console.log("Got message: " + m.data);
+            let message = JSON.parse(m.data);
+            ob.setState({ stationEvent: message });
+        };
+    }
+};
 
   toggleNewStationModal(){
     this.setState({newStationModal: !this.state.newStationModal});
@@ -110,6 +133,7 @@ class App extends Component {
           airPressure: null
         }
       }});
+    this.connectToStationSocket(id, this);
   }
 
   render() {
