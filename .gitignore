@@ -54,3 +54,7 @@ jboss/server/minimal/work/**/*
 
 *.DEPLOYED
 
+
+stationSimulator/*-tcp*
+
+
