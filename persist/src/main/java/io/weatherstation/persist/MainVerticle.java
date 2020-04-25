@@ -4,10 +4,12 @@ import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.weatherstation.persist.amqp.AmqpConsumerVerticle;
+import io.weatherstation.persist.postgresql.PostgresqlPersistenceVerticle;
 
 public class MainVerticle extends AbstractVerticle {
 	public static final String YAML_CONFIGURATION_FILE_NAME = "configuration.yaml";
@@ -33,10 +35,36 @@ public class MainVerticle extends AbstractVerticle {
 				JsonObject configuration = configurationResult.result();
 
 				var amqpConsumerVerticle = new AmqpConsumerVerticle();
-				JsonObject amqpConsumerConfiguration = configuration.getJsonObject("persistence");
+				JsonObject amqpConsumerConfiguration = configuration
+					.getJsonObject("persistence")
+					.getJsonObject("amqpConsumer");
 				var amqpConsumerVerticleDeploymentOptions = new DeploymentOptions()
 					.setConfig(amqpConsumerConfiguration);
-				this.vertx.deployVerticle(amqpConsumerVerticle, amqpConsumerVerticleDeploymentOptions);
+				this.vertx.deployVerticle(
+					amqpConsumerVerticle, amqpConsumerVerticleDeploymentOptions,
+					amqpConsumerStartFuture -> {
+						if (amqpConsumerStartFuture.failed()) {
+							startFuture.fail(amqpConsumerStartFuture.cause());
+						} else {
+							var postgresqlPersistenceVerticle = new PostgresqlPersistenceVerticle();
+							JsonObject postgresqlPersistenceConfiguration = configuration
+								.getJsonObject("persistence")
+								.getJsonObject("postgresql");
+							var postgresqlPersistenceVerticleOptions = new DeploymentOptions()
+								.setConfig(postgresqlPersistenceConfiguration);
+							this.vertx.deployVerticle(
+								postgresqlPersistenceVerticle, postgresqlPersistenceVerticleOptions,
+								postgresqlPersistenceStartFuture -> {
+									if (postgresqlPersistenceStartFuture.failed()) {
+										startFuture.fail(postgresqlPersistenceStartFuture.cause());
+									} else {
+										startFuture.complete();
+									}
+								}
+							);
+						}
+					}
+				);
 			}
 		});
 
