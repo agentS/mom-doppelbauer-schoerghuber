@@ -19,6 +19,7 @@ class App extends Component {
       selectedStation: -1,
       stationEvent: {
         weatherStationId: 1,
+        timestamp: null,
         measurement: {
           temperature: null,
           humidity: null,
@@ -145,7 +146,7 @@ class App extends Component {
         <div className="App">
           <Breadcrumb>
             <BreadcrumbItem active>
-              ({this.state.selectedStation}) {this.state.stationEvent.weatherStationId}: T{this.state.stationEvent.measurement.temperature} H{this.state.stationEvent.measurement.humidity} P{this.state.stationEvent.measurement.airPressure} 
+              ({this.state.selectedStation}) {this.state.stationEvent.weatherStationId} - {this.state.stationEvent.timestamp}: T{this.state.stationEvent.measurement.temperature} H{this.state.stationEvent.measurement.humidity} P{this.state.stationEvent.measurement.airPressure} 
             </BreadcrumbItem>
           </Breadcrumb>
           <Button color="secondary" onClick={this.toggleNewStationModal.bind(this)}>+ add new station</Button>

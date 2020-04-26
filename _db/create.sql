@@ -1,5 +1,5 @@
 CREATE TABLE station(
-    id INTEGER PRIMARY KEY NOT NULL,
+    id SERIAL PRIMARY KEY NOT NULL,
     name varchar(255) NOT NULL
 );
 
