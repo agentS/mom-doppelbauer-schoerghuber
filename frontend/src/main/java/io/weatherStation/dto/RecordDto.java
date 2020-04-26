@@ -1,10 +1,13 @@
 package io.weatherStation.dto;
 
 import javax.json.bind.annotation.JsonbProperty;
+import java.time.LocalDateTime;
 
 public final class RecordDto {
 	@JsonbProperty("weatherStationId")
 	private long weatherStationId;
+	@JsonbProperty("timestamp")
+	private LocalDateTime timestamp;
 	@JsonbProperty("measurement")
 	private MeasurementDto measurementDto;
 
