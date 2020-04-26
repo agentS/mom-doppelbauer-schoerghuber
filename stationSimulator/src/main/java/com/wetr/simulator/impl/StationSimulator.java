@@ -14,6 +14,7 @@ public class StationSimulator implements Simulator {
         sensors = new ArrayList<>();
         stationId++;
         id = stationId;
+        //id = 1; // TODO: uncomment for testing insertion of duplicated records
     }
 
     public int getId() {

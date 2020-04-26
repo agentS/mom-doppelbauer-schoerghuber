@@ -12,3 +12,4 @@ persistence:
       username: weatherdata
       password: thunderstorm
       queueName: measurement-records
+      containerId: persistence

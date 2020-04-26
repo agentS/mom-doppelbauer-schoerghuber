@@ -4,8 +4,11 @@ import io.vertx.amqp.*;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.ReplyException;
 import io.vertx.core.json.JsonObject;
 import io.weatherstation.persist.EventBusAddresses;
+import io.weatherstation.persist.postgresql.DuplicateRecordException;
+import io.weatherstation.persist.postgresql.PostgresqlPersistenceVerticle;
 
 public class AmqpConsumerVerticle extends AbstractVerticle {
 	private AmqpClient amqpClient;
@@ -18,16 +21,20 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 			.setHost(this.config().getString("hostname"))
 			.setPort(this.config().getInteger("port"))
 			.setUsername(this.config().getString("username"))
-			.setPassword(this.config().getString("password"));
+			.setPassword(this.config().getString("password"))
+			.setContainerId(this.config().getString("containerId"));
 		this.amqpClient = AmqpClient.create(this.vertx, amqpConfiguration);
 		this.amqpClient.connect(connectionResult -> {
 			if (connectionResult.failed()) {
 				startFuture.fail(connectionResult.cause());
 			} else {
 				AmqpConnection amqpConnection = connectionResult.result();
-				var amqpConnectionOptions = new AmqpReceiverOptions();
+				var amqpConnectionOptions = new AmqpReceiverOptions()
+					.setAutoAcknowledgement(false)
+					.setDurable(true);
 				amqpConnection.createReceiver(
 					this.config().getString("queueName"),
+					amqpConnectionOptions,
 					receiverCreationResult -> {
 						if (receiverCreationResult.failed()) {
 							startFuture.fail(receiverCreationResult.cause());
@@ -45,8 +52,6 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 		});
 	}
 
-
-
 	private void handleWeatherRecordMessage(AmqpMessage amqpMessage) {
 		JsonObject body = amqpMessage.bodyAsJsonObject();
 		this.eventBus.send(
@@ -54,10 +59,15 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 			body,
 			response -> {
 				if (response.failed()) {
-					// TODO: handle unsuccessful persistence procedure
-					response.cause().printStackTrace(System.err);
+					ReplyException exception = ((ReplyException) response.cause());
+					if (exception.failureCode() != PostgresqlPersistenceVerticle.FAILURE_CODE_DUPLICATED_RECORD) {
+						amqpMessage.rejected();
+						response.cause().printStackTrace(System.err);
+					} else {
+						amqpMessage.accepted();
+					}
 				} else {
-					// TODO: acknowledge message
+					amqpMessage.accepted();
 					System.out.println("Inserted record for " + body);
 				}
 			}
