@@ -1,15 +1,16 @@
 CREATE TABLE station(
-    id INTEGER PRIMARY KEY,
-    name varchar(255)
+    id INTEGER PRIMARY KEY NOT NULL,
+    name varchar(255) NOT NULL
 );
 
 CREATE TABLE measurement(
-    stationId INTEGER PRIMARY KEY,
-    temperature DOUBLE PRECISION,
-    humidity DOUBLE PRECISION,
-    airPressure DOUBLE PRECISION,
-    createdAt TIMESTAMP,
-    FOREIGN KEY (stationId) REFERENCES station(id)
+    station_id INTEGER NOT NULL,
+    temperature DOUBLE PRECISION NOT NULL,
+    humidity DOUBLE PRECISION NOT NULL,
+    air_pressure DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_measurement_station FOREIGN KEY (station_id) REFERENCES station(id),
+    CONSTRAINT pk_measurement PRIMARY KEY(station_id, created_at)
 );
 
 INSERT INTO station (id, name) VALUES (1, 'station1');
