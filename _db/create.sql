@@ -4,7 +4,7 @@ CREATE TABLE station(
 );
 
 CREATE TABLE measurement(
-    station_id INTEGER NOT NULL,
+    station_id SERIAL NOT NULL,
     temperature DOUBLE PRECISION NOT NULL,
     humidity DOUBLE PRECISION NOT NULL,
     air_pressure DOUBLE PRECISION NOT NULL,
@@ -16,5 +16,8 @@ CREATE TABLE measurement(
 INSERT INTO station (id, name) VALUES (1, 'station1');
 INSERT INTO station (id, name) VALUES (2, 'station2');
 INSERT INTO station (id, name) VALUES (3, 'station3');
+INSERT INTO station (id, name) VALUES (4, 'station4');
+INSERT INTO station (id, name) VALUES (5, 'station5');
+INSERT INTO station (id, name) VALUES (6, 'station6');
 
 COMMIT;

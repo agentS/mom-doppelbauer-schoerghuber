@@ -7,7 +7,6 @@ import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.ReplyException;
 import io.vertx.core.json.JsonObject;
 import io.weatherstation.persist.EventBusAddresses;
-import io.weatherstation.persist.postgresql.DuplicateRecordException;
 import io.weatherstation.persist.postgresql.PostgresqlPersistenceVerticle;
 
 public class AmqpConsumerVerticle extends AbstractVerticle {

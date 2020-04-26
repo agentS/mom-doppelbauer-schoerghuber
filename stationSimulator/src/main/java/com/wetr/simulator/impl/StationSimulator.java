@@ -10,10 +10,10 @@ public class StationSimulator implements Simulator {
     private int id;
     private List<Simulator> sensors;
 
-    public StationSimulator(){
+    public StationSimulator(final int weatherStationIdOffset){
         sensors = new ArrayList<>();
         stationId++;
-        id = stationId;
+        id = stationId + weatherStationIdOffset;
         //id = 1; // TODO: uncomment for testing insertion of duplicated records
     }
 
