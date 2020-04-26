@@ -11,5 +11,5 @@ persistence:
       port: 5672
       username: weatherdata
       password: thunderstorm
-      queueName: measurement-records
+      queueName: measurement-records-persistence
       containerId: persistence
