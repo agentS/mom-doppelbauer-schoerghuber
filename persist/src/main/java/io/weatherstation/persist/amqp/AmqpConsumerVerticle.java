@@ -52,7 +52,7 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 	}
 
 	private void handleWeatherRecordMessage(AmqpMessage amqpMessage) {
-		JsonObject body = amqpMessage.bodyAsJsonObject();
+		var body = new JsonObject(amqpMessage.bodyAsString());
 		this.eventBus.send(
 			EventBusAddresses.PERSISTENCE_POSTGRESQL,
 			body,
