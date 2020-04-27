@@ -27,7 +27,7 @@ public class MqttCollector {
 	@Outgoing("amqp-measurement-records")
 	@Acknowledgment(Acknowledgment.Strategy.MANUAL)
 	@Broadcast
-	public Message<JsonObject> processMeasurement(MqttMessage<byte[]> message) {
+	public Message<String> processMeasurement(MqttMessage<byte[]> message) {
 		long weatherStationId = MqttMessageParser.parseWeatherStationId(message.getTopic(), this.topicPrefix);
 		String payload = new String(message.getPayload());
 		MeasurementDto measurement = MqttMessageParser.parseMeasurementCsv(payload);
@@ -35,7 +35,7 @@ public class MqttCollector {
 				.truncatedTo(ChronoUnit.SECONDS);
 		RecordDto record = new RecordDto(weatherStationId, timestamp, measurement);
 		return Message.of(
-				RecordJsonConverter.toJson(record),
+				RecordJsonConverter.toJson(record).toString(),
 				message::ack
 		);
 	}
