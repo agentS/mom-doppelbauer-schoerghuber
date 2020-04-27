@@ -12,24 +12,30 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 
 public class MqttMessageGenerator implements Callable<Void> {
-    public static final String MQTT_SERVER_URI = "tcp://0.0.0.0:1883";
+    public static final String MQTT_BROKER_URI_PREFIX = "tcp://";
     public static final int MQTT_CONNECTION_TIMEOUT = 10;
     public static final String TOPIC_PREFIX = "sensor-data";
 
     private IMqttClient client;
     private List<StationSimulator> stationSimulators;
+    private final String mqttBrokerUri;
 
-    public MqttMessageGenerator(List<StationSimulator> stationSimulators) throws Exception {
-        this.client = createMqttClient();
+    public MqttMessageGenerator(
+            List<StationSimulator> stationSimulators,
+            final String mqttBrokerHostname,
+            final int mqttBrokerPort
+    ) throws Exception {
+        this.mqttBrokerUri = MQTT_BROKER_URI_PREFIX + mqttBrokerHostname + ":" + mqttBrokerPort;
+        this.client = createMqttClient(this.mqttBrokerUri);
         this.stationSimulators = stationSimulators;
     }
 
     /**
      * create new MQTT client
      * */
-    public static IMqttClient createMqttClient() throws Exception {
+    public static IMqttClient createMqttClient(final String mqttBrokerUri) throws Exception {
         String publisherId = UUID.randomUUID().toString();
-        IMqttClient publisher = new MqttClient(MQTT_SERVER_URI, publisherId);
+        IMqttClient publisher = new MqttClient(mqttBrokerUri, publisherId);
         MqttConnectOptions options = new MqttConnectOptions();
         options.setAutomaticReconnect(true);
         options.setCleanSession(true);

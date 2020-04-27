@@ -6,6 +6,7 @@ import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.pgclient.PgConnectOptions;
+import io.vertx.pgclient.PgException;
 import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
 import io.vertx.sqlclient.SqlConnection;
@@ -22,6 +23,9 @@ public class PostgresqlPersistenceVerticle extends AbstractVerticle {
 	public static final int FAILURE_CODE_NO_CONNECTION = 0;
 	public static final int FAILURE_CODE_INSERT_FAILED = 1;
 	public static final int FAILURE_CODE_COMMIT_FAILED = 2;
+	public static final int FAILURE_CODE_DUPLICATED_RECORD = -1;
+
+	public static final int DUPLICATED_KEY_POSTGRESQL_ERROR_CODE = 23505;
 
 	private PgPool postgresqlPool;
 
@@ -79,9 +83,10 @@ public class PostgresqlPersistenceVerticle extends AbstractVerticle {
 							if (databaseInsertResult.failed()) {
 								transaction.rollback(transactionRollbackResult -> {
 									databaseConnection.close();
-									message.fail(
-										FAILURE_CODE_INSERT_FAILED,
-										databaseInsertResult.cause().getMessage()
+									this.handlePostgresqlExcpetion(
+										message,
+										(PgException) databaseInsertResult.cause(),
+										FAILURE_CODE_INSERT_FAILED
 									);
 								});
 							} else {
@@ -89,9 +94,10 @@ public class PostgresqlPersistenceVerticle extends AbstractVerticle {
 									if (transactionCommitResult.failed()) {
 										transaction.rollback(transactionRollbackResult -> {
 											databaseConnection.close();
-											message.fail(
-												FAILURE_CODE_COMMIT_FAILED,
-												transactionCommitResult.cause().getMessage()
+											this.handlePostgresqlExcpetion(
+												message,
+												(PgException) transactionCommitResult.cause(),
+												FAILURE_CODE_COMMIT_FAILED
 											);
 										});
 									} else {
@@ -104,6 +110,32 @@ public class PostgresqlPersistenceVerticle extends AbstractVerticle {
 					);
 			}
 		});
+	}
+
+	private void handlePostgresqlExcpetion(
+		Message<JsonObject> message,
+		PgException exception,
+		final int nonDuplicateFailureCode
+	) {
+		try {
+			int errorCode = Integer.parseInt(exception.getCode());
+			if (errorCode == DUPLICATED_KEY_POSTGRESQL_ERROR_CODE) {
+				message.fail(
+					FAILURE_CODE_DUPLICATED_RECORD,
+					exception.getMessage()
+				);
+			} else {
+				message.fail(
+					nonDuplicateFailureCode,
+					exception.getMessage()
+				);
+			}
+		} catch (NumberFormatException conversionException) {
+			message.fail(
+				nonDuplicateFailureCode,
+				exception.getMessage()
+			);
+		}
 	}
 
 	@Override

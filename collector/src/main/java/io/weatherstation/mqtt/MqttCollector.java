@@ -2,21 +2,17 @@ package io.weatherstation.mqtt;
 
 import io.smallrye.reactive.messaging.annotations.Broadcast;
 import io.smallrye.reactive.messaging.mqtt.MqttMessage;
-import io.vertx.amqp.AmqpMessage;
 import io.vertx.core.json.JsonObject;
 import io.weatherstation.dto.MeasurementDto;
 import io.weatherstation.dto.RecordDto;
 import io.weatherstation.dto.RecordJsonConverter;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.eclipse.microprofile.reactive.messaging.Incoming;
-import org.eclipse.microprofile.reactive.messaging.Outgoing;
+import org.eclipse.microprofile.reactive.messaging.*;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.json.bind.Jsonb;
-import javax.json.bind.JsonbBuilder;
-import javax.ws.rs.core.MediaType;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @ApplicationScoped
 public class MqttCollector {
@@ -29,15 +25,18 @@ public class MqttCollector {
 
 	@Incoming("mqtt-sensor-data")
 	@Outgoing("amqp-measurement-records")
+	@Acknowledgment(Acknowledgment.Strategy.MANUAL)
 	@Broadcast
-	public AmqpMessage processMeasurement(MqttMessage<byte[]> message) {
+	public Message<JsonObject> processMeasurement(MqttMessage<byte[]> message) {
 		long weatherStationId = MqttMessageParser.parseWeatherStationId(message.getTopic(), this.topicPrefix);
 		String payload = new String(message.getPayload());
 		MeasurementDto measurement = MqttMessageParser.parseMeasurementCsv(payload);
-		RecordDto record = new RecordDto(weatherStationId, LocalDateTime.now(), measurement);
-		return AmqpMessage.create()
-				.contentType(MediaType.APPLICATION_JSON)
-				.withJsonObjectAsBody(RecordJsonConverter.toJson(record))
-				.build();
+		LocalDateTime timestamp = LocalDateTime.now()
+				.truncatedTo(ChronoUnit.SECONDS);
+		RecordDto record = new RecordDto(weatherStationId, timestamp, measurement);
+		return Message.of(
+				RecordJsonConverter.toJson(record),
+				message::ack
+		);
 	}
 }

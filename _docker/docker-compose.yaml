@@ -2,11 +2,13 @@ version: '2'
 
 services:
   artemis:
-    image: vromero/activemq-artemis:2.8.0-alpine
+    image: vromero/activemq-artemis:2-alpine-latest
     ports:
       - "8161:8161"
       - "61616:61616"
       - "5672:5672"
+    volumes:
+      - ./artemisConfiguration:/var/lib/artemis/etc-override
     environment:
       ARTEMIS_USERNAME: weatherdata
       ARTEMIS_PASSWORD: thunderstorm

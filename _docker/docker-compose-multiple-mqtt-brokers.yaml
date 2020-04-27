@@ -1,0 +1,35 @@
+version: '2'
+
+services:
+  artemis:
+    image: vromero/activemq-artemis:2-alpine-latest
+    ports:
+      - "8161:8161"
+      - "61616:61616"
+      - "5672:5672"
+    volumes:
+      - ./artemisConfiguration:/var/lib/artemis/etc-override
+    environment:
+      ARTEMIS_USERNAME: weatherdata
+      ARTEMIS_PASSWORD: thunderstorm
+  eclipse-mosquitto_eu:
+    image: eclipse-mosquitto:1.6.9
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto_eu.conf:/mosquitto/config/mosquitto.conf
+  eclipse-mosquitto_us:
+    image: eclipse-mosquitto:1.6.9
+    ports:
+      - "1884:1883"
+      #- "9001:9001"
+    volumes:
+      - ./mosquitto_us.conf:/mosquitto/config/mosquitto.conf
+  eclipse-mosquitto_ca:
+    image: eclipse-mosquitto:1.6.9
+    ports:
+      - "1885:1883"
+      #- "9001:9001"
+    volumes:
+      - ./mosquitto_ca.conf:/mosquitto/config/mosquitto.conf
