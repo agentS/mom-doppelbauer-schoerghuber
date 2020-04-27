@@ -1,5 +1,6 @@
 package io.weatherStation.message;
 
+import io.vertx.amqp.AmqpMessage;
 import io.vertx.core.json.JsonObject;
 import io.weatherStation.SocketManager;
 import io.weatherStation.dto.RecordDto;
@@ -22,10 +23,10 @@ public class AmqpConsumer {
 
     @Incoming("measurement-records")
     @Acknowledgment(Acknowledgment.Strategy.NONE)
-    public void process(JsonObject message) {
+    public void process(String message) {
         System.out.println("received: " + message);
         Jsonb jsonBuilder = JsonbBuilder.create();
-        RecordDto record = jsonBuilder.fromJson(message.toString(), RecordDto.class);
-        socketManager.broadcast(String.valueOf(record.getWeatherStationId()), message.toString());
+        RecordDto record = jsonBuilder.fromJson(message, RecordDto.class);
+        socketManager.broadcast(String.valueOf(record.getWeatherStationId()), message);
     }
 }
