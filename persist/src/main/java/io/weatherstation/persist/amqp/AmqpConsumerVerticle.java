@@ -64,6 +64,7 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 						response.cause().printStackTrace(System.err);
 					} else {
 						amqpMessage.accepted();
+						System.out.println("Duplicated record not inserted for " + body);
 					}
 				} else {
 					amqpMessage.accepted();
