@@ -19,5 +19,6 @@ INSERT INTO station (id, name) VALUES (3, 'station3');
 INSERT INTO station (id, name) VALUES (4, 'station4');
 INSERT INTO station (id, name) VALUES (5, 'station5');
 INSERT INTO station (id, name) VALUES (6, 'station6');
+INSERT INTO station (id, name) VALUES (10, 'ESP8266-powered weather station');
 
 COMMIT;
