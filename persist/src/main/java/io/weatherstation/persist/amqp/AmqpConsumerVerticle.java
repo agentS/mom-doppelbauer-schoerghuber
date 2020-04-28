@@ -28,14 +28,14 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 				startFuture.fail(connectionResult.cause());
 			} else {
 				AmqpConnection amqpConnection = connectionResult.result();
-				var amqpConnectionOptions = new AmqpReceiverOptions()
+				var amqpReceiverOptions = new AmqpReceiverOptions()
 					.setAutoAcknowledgement(false)
 					.setDurable(true)
 					.setQos("AT_LEAST_ONCE")
 					.setMaxBufferedMessages(this.config().getInteger("maxBufferedMessages"));
 				amqpConnection.createReceiver(
 					this.config().getString("queueName"),
-					amqpConnectionOptions,
+					amqpReceiverOptions,
 					receiverCreationResult -> {
 						if (receiverCreationResult.failed()) {
 							startFuture.fail(receiverCreationResult.cause());

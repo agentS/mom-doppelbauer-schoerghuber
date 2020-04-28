@@ -77,6 +77,7 @@ Während dies z.B. für JMS möglich ist, da es möglich ist, sowohl eine Queue 
 Laut Dokumentation wird sich ein Client bei der Verwendung von beiden Routing-Types mit AMQP 1.0 standardmäßig auf die Anycast-Queue verbinden, was sich in Tests auch bewahrheitet hat.
 Für Details hierzu [siehe den Abschnitt "Point-to-Point and Publish-Subscribe Addresses" in der Dokumentation](https://activemq.apache.org/components/artemis/documentation/latest/address-model.html).
 
+Eine Möglichkeit wäre gewesen, den Collector-Service zu erweitern, was jedoch der losen Kopplung, die mit einem Message-Queueing-Protokoll erreicht werden soll, widerspricht.
 Daher haben wir uns entschieden, für den Anycast-Betrieb eine zusätzliche Adresse zu definieren und mittels eines [Diverts](https://activemq.apache.org/components/artemis/documentation/latest/diverts.html) den Nachrichtenfluss für die ursprüngliche Adresse so aufzuteilen, dass Nachrichten, die für die ursprüngliche Adresse bestimmt sind weiterhin an diese zugestellt werden und zusätzlich an die neue Adresse für den Anycast-Betrieb kopiert werden.
 Hierfür wird die Semantik eines nichtexklusiven Diverts verwendet.
 Da wir einige Stunden zum Finden der Lösung verbracht haben, zeigt sich hier ein Nachteil in der nichtstandardisierten Broker-Konfiguration von AMQP 1.0 im Vergleich zu AMQP 0-9-1.
@@ -203,13 +204,114 @@ Dies ist für die Zwecke einer simplen Wetterstation völlig ausreichend und da 
 
 # Collector
 
-Lukas
+Die Aufgabe des Collector-Services ist es, sich als Subscriber für Wetterdaten, die über MQTT übertragen werden, zu registrieren, dies zu konvertieren und sie anschließend an eine AMQP-Adresse weiterzuleiten.
+Der Collector-Service ist mit [Quarkus](https://quarkus.io/) und mit dessen Implementierung von [MicroProfile Reactive Messaging 1.0](https://download.eclipse.org/microprofile/microprofile-reactive-messaging-1.0/microprofile-reactive-messaging-spec.pdf), welche auf der [SmallRye-Implementierung](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/) beruht, realisiert.
 
-Annotationen + Konfiguration (`application.properties`) erklären
+## Design
+
+MicroProfile Reactive Messaging abstrahiert Nachrichten von mehreren Message-Queueing-Technologien (momentan MQTT, AMQP 1.0 und Apache Kafka) in Streams und ermöglicht es, CDI-Beans, welche die Nachrichten eines Stream verarbeiten, zu definieren.
+Messages werden innerhalb einer Applikation über Channels übertragen.
+Ein Channel ist ein virtuelles Ziel, welches mit einem Namen identifiziert wird.
+Die MicroProfile Reactive Messaging-Implementierung stellt anschließend eine Verbindung zwischen Channels und CDI-Beans, welche die Nachrichten eines eingehenden Channels verarbeiten und/oder neue Nachrichten auf einen ausgehenden Channel senden, her.
+Eine gute Illustration zeigt das folgende Bild aus der Dokumentation von SmallRye Reactive Messaging.
+
+![Relation von CDI-Beans und Channels](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/_images/channels.png)
+
+Ein Connector stellt anschließend die Verbindung zwischen einem Chanell und einem Message-Broker her.
+Dabei werden von einem Broker gesendete Nachrichten auf einen eingehenden Kanal gemappt und von einem Kanal ausgehende Nachrichten gesammelt an einen Broker geschickt.
+Der Broker kann es sich dabei entweder eine MQTT-, eine AMQP- oder eine Kafka-Instanz handeln.
+Dies wird wiederum in der SmallRye-Dokumentation sehr anschaulich illustriert:
+
+![Connectors stellen Verbindungen zwischen Channels und Message-Brokern her](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/_images/connectors.png)
+
+Eine Nachricht setzt sich in der MicroProfile Reactive Messaging-Spezifikation aus Metadaten und Payload zusammen und werden grundsätzlich durch die Klasse `Message<T>` repräsentiert.
+Die Spezifikation legt dabei fest, dass auch Broker-abhängige Metadaten, wie z.B. das Topic in MQTT, über spezielle Klassen, welche das Interface `Message<T>` erweitern und von der Implementierung beisteuert werden, zugegriffen werden kann.
+Ein Beispiel ist die Klasse `MqttMessage<T>` [der SmallRye-Implementierung](https://github.com/smallrye/smallrye-reactive-messaging/blob/master/smallrye-reactive-messaging-mqtt/src/main/java/io/smallrye/reactive/messaging/mqtt/MqttMessage.java), welche eine MQTT-Nachricht repräsentiert und über die auf das Topic zugegriffen werden kann.
+
+## Implementierung
+
+Die wichtigste Komponente ist das CDI-Bean `MqttCollector`, dessen Quellcode im unteren Snippet gezeigt wird.
+Die Spezifikation MicroProfile Reactive Messaging legt fest, dass Beans, welche einen Stream von Nachrichten verarbeiten, entweder mit `@ApplicationScoped`.
+Um die ID der Wetterstation aus dem Topic der MQTT-Nachricht extrahieren zu können, wird der Topic-Präfix als Konfigurationsparameter injiziert.
+Die Implementierung nimmt dabei Mqtt-Nachrichten aus dem Channel `mqtt-sensor-data` entgegen, was durch die Annotation `@Incoming("mqtt-sensor-data")` festgelegt wird, verarbeitet diese und leitet sie an den Channel `amqp-measurement-records` weiter, was die Annotation `@Outgoing("amqp-measurement-records")` bewirkt.
+Die Annotation `@Acknowledgment(Acknowledgment.Strategy.MANUAL)` stellt den Zeitpunkt des Sendens der Bestätigung für die empfangene Nachricht vom standardmäßigen Bestätigen vor Ausführung der annotierten Methode auf Bestätigung durch den Implementierer um.
+Dadurch kann erreicht werden, dass Nachrichten erst nach der wirklichen Verarbeitung besätigt werden.
+Hierdurch wird auch für die ausgehenden Nachrichten das AMQP-QoS-Level 1 automatisch durch die Implementierung festgelegt.
+Abschließend legt die Annotation `@Broadcast` noch fest, dass ausgehende Nachrichten an alle Subscriber dispatcht werden.
+
+Das Besätigen der eingehenden Nachrichten erfolgt über ein Idiom, welches in der Spezifikation zu [MicroProfile Reactive Messaging 1.0](https://download.eclipse.org/microprofile/microprofile-reactive-messaging-1.0/microprofile-reactive-messaging-spec.pdf) beschrieben wird (Seite 27): Die eingehende Nachricht wird mittels eines Callbacks erst dann bestätigt, nachdem die ausgehende Nachricht versendet wurde.
+
+```java
+@ApplicationScoped
+public class MqttCollector {
+	private final String topicPrefix;
+
+	@Inject
+	public MqttCollector(@ConfigProperty(name = "mqtt.topic-prefix") String topicPrefix) {
+		this.topicPrefix = topicPrefix;
+	}
+
+	@Incoming("mqtt-sensor-data")
+	@Outgoing("amqp-measurement-records")
+	@Acknowledgment(Acknowledgment.Strategy.MANUAL)
+	@Broadcast
+	public Message<String> processMeasurement(MqttMessage<byte[]> message) {
+		long weatherStationId = MqttMessageParser.parseWeatherStationId(message.getTopic(), this.topicPrefix);
+		String payload = new String(message.getPayload());
+		MeasurementDto measurement = MqttMessageParser.parseMeasurementCsv(payload);
+		LocalDateTime timestamp = LocalDateTime.now()
+				.truncatedTo(ChronoUnit.SECONDS);
+		RecordDto record = new RecordDto(weatherStationId, timestamp, measurement);
+		return Message.of(
+				RecordJsonConverter.toJson(record).toString(),
+				message::ack
+		);
+	}
+}
+```
+
+## Konfiguration
+
+Die Connectoren, welche die Channels mit den Brokern verbinden, werden in der Konfiguration der Anwendung festgelegt.
+Die möglichen Eigenschaften sind dabei wieder implementierungsabhängig (siehe Dokumentation zu [AMQP](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/amqp/amqp.html) und [MQTT](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/mqtt/mqtt.html) in SmallRye Reactive Messaging).
+Im ersten Block wird der eingehende Channel `mqtt-sensor-data` mit allen MQTT-Topics, die mit der Bezeichnung `sensor-data` beginnen und anschließend eine beliebige Stations-ID als zweiten Bestandteil haben verbunden.
+Darüber hinaus wird das QoS-Level noch entsprechend gesetzt und eine Client-ID zur besseren Identifizierung am Broker festgelegt.
+
+Der zweite Block legt die grundlegenden Eigenschaften zur Verbindung mit dem AMQP-Broker fest, während der dritte Block die Verbindung zwischen dem ausgehenden Channel `amqp-measurement-records` und der AMQP-Adresse `measurement-records` festlegt.
+Die Festlegung der Container-ID dient wieder zur besseren Identifizierbarkeit am AMQP-Broker, da ansonsten eine UUID verwendet wird.
+Wichtig ist noch, dass festgelegt wird, dass die Queues durable sind, also auch bei Verbindungsabrissen bestehen bleiben.
+
+```properties
+mp.messaging.incoming.mqtt-sensor-data.client-id = eu.collector.mqtt
+mp.messaging.incoming.mqtt-sensor-data.auto-generated-client-id = false
+mp.messaging.incoming.mqtt-sensor-data.type = smallrye-mqtt
+mp.messaging.incoming.mqtt-sensor-data.topic = sensor-data/+
+mp.messaging.incoming.mqtt-sensor-data.host = 127.0.0.1
+mp.messaging.incoming.mqtt-sensor-data.port = 1883
+mp.messaging.incoming.mqtt-sensor-data.qos = 2
+
+# set the AMQP broker credentials
+amqp-host = 127.0.0.1
+amqp-port = 5672
+amqp-username = weatherdata
+amqp-password = thunderstorm
+
+# configure the AMQP connector to write to the `persisted-sensor-values` address
+mp.messaging.outgoing.amqp-measurement-records.connector = smallrye-amqp
+mp.messaging.outgoing.amqp-measurement-records.address = measurement-records
+mp.messaging.outgoing.amqp-measurement-records.containerId = collector
+mp.messaging.outgoing.amqp-measurement-records.durable = true
+
+mqtt.topic-prefix = sensor-data/
+```
 
 # Frontend
 
 Alexander
+
+## Design
+
+## Implementierung
 
 Annotationen + Konfiguration (`application.properties`) erklären
 
@@ -219,12 +321,113 @@ Alexander
 
 # Persistence
 
-Lukas
+Der Zweck des Persistence-Services ist es, die eingehenden Wetternachrichten in einer PostgreSQL-Datenbank abzuspeichern.
+Um auch andere Implementierungen als das in Quarkus verwendete SmallRye Reactive Messaging zu testen, ist der Persistence-Service mit dem Toolkits [Vert.x](https://www.vertx.io/) implementiert.
 
-AMQP-Receiver-Konfiguration erklären
+## Design
+
+Vert.x ist ausschließlich auf asynchrone Kommunikation innerhalb der Anwendung ausgelegt und bietet asynchrone Libraries für [AMQP](https://vertx.io/docs/vertx-pg-client/java/) und [PostgreSQL](https://vertx.io/docs/vertx-amqp-client/java/).
+Um die Funktionalitäten des Empfangens von AMQP-Nachrichten und des Persistierens der Wetterdaten zu trennen, wurden beide Funktionalitäten als eigenständige Komponenten (**Verticles** in Vert.x) realisiert, die mittels eines Request-Response-Patterns über den von Vert.x intern verwendeten Event-Bus miteinander kommunizieren.
+Das Verticle zum Empfang von AMQP-Nachrichten extrahiert bei einer eingehenden Nachricht das JSON-Objekt aus der Nachricht, sendet einen Request an das Datenbank-Persistence-Verticle und bestätigt je nach Resultat die erfolgreiche oder fehlgeschlagene Verarbeitung der Nachricht.
+
+### Behandlung von Duplikaten
+
+Um Duplikate zu vermeiden, sind für ein Wettermessdatum sowohl die ID der Wetterstation als auch der Zeitstempel as Primärschlüssel definiert.
+Auf Seite des Persistence-Services wird eine Transaktion zum Einfügen verwendet.
+Tritt eine Verletzung des Primärschlüssels auf, wird diese erkannt, die Transaktion zurückgerollt und dieser Fall mittels eines speziellen Responses an das AMQP-Verticle signalisiert.
+Das AMQP-Verticle bestätigt im Falle eines Duplikates die Verarbeitung der Nachricht dennoch an den AMQP-Broker, da davon ausgegangen ist, dass es sich um eine versehentlich doppelt zugestellte Nachricht handelt, die nun korrekt behandelt wurde.
+
+Tritt eine andere Ausnahme beim Einfügen eines Wetterdatums ein, wird eine Rejection an den AMQP-Broker gesendet.
+
+## Implementierung und Konfiguration
+
+In der Methode `start` des AMQP-Consumer-Verticles wird eine Verbindung zum AMQP-Broker aufgebaut, wobei die Werte aus der Konfigurationsdatei übernommen werden.
+Die Container-ID dient dabei wieder dazu, den Consumer besser am AMQP-Broker identifizieren zu können.
+Für den AMQP-Receiver (Subscriber) wird festgelegt, dass die Nachrichten nicht automatisch von der Vert.x-Implementierung des AMQP-Clients bestätigt werden sollen.
+Darüber hinaus wird festgelegt, dass die Durable-Eigenschaft gesetzt sein soll, Nachrichten also nach einer Offline-Periode des Subscribers erneut zugestellt werden sollen.
+Ebenfalls wird das QoS-Level auf 1 gesetzt und die Anzahl der Nachrichten, die der Subscriber maximal puffern kann, begrenzt, wobei nur der Vert.x-AMQP-Client eine so feingranulare Konfiguration erlaubt.
+
+Die Methode `handleWeatherRecordMessage` extrahiert das JSON-Objekt aus der Nachricht, schickt einen Request an das PostgreSQL-Persitence-Verticle und bestätigt oder rejected die AMQP-Nachricht abhängig vom Response des PostgreSQL-Persitence-Verticles.
+
+```java
+public class AmqpConsumerVerticle extends AbstractVerticle {
+	// ...
+
+	@Override
+	public void start(Future<Void> startFuture) throws Exception {
+		this.eventBus = this.vertx.eventBus();
+		var amqpConfiguration = new AmqpClientOptions()
+			.setHost(this.config().getString("hostname"))
+			.setPort(this.config().getInteger("port"))
+			.setUsername(this.config().getString("username"))
+			.setPassword(this.config().getString("password"))
+			.setContainerId(this.config().getString("containerId"));
+		this.amqpClient = AmqpClient.create(this.vertx, amqpConfiguration);
+		this.amqpClient.connect(connectionResult -> {
+			if (connectionResult.failed()) {
+				startFuture.fail(connectionResult.cause());
+			} else {
+				AmqpConnection amqpConnection = connectionResult.result();
+				var amqpReceiverOptions = new AmqpReceiverOptions()
+					.setAutoAcknowledgement(false)
+					.setDurable(true)
+					.setQos("AT_LEAST_ONCE")
+					.setMaxBufferedMessages(this.config().getInteger("maxBufferedMessages"));
+				amqpConnection.createReceiver(
+					this.config().getString("queueName"),
+					amqpReceiverOptions,
+					receiverCreationResult -> {
+						if (receiverCreationResult.failed()) {
+							startFuture.fail(receiverCreationResult.cause());
+						} else {
+							AmqpReceiver receiver = receiverCreationResult.result();
+							receiver
+								.exceptionHandler(this::handleWeatherRecordMessageException)
+								.handler(this::handleWeatherRecordMessage);
+							startFuture.complete();
+							System.out.println("AMQP receiver listening to queue " + this.config().getString("queueName"));
+						}
+					}
+				);
+			}
+		});
+	}
+
+	private void handleWeatherRecordMessage(AmqpMessage amqpMessage) {
+		var body = new JsonObject(amqpMessage.bodyAsString());
+		this.eventBus.send(
+			EventBusAddresses.PERSISTENCE_POSTGRESQL,
+			body,
+			response -> {
+				if (response.failed()) {
+					ReplyException exception = ((ReplyException) response.cause());
+					if (exception.failureCode() != PostgresqlPersistenceVerticle.FAILURE_CODE_DUPLICATED_RECORD) {
+						amqpMessage.rejected();
+						response.cause().printStackTrace(System.err);
+					} else {
+						amqpMessage.accepted();
+						System.out.println("Duplicated record not inserted for " + body);
+					}
+				} else {
+					amqpMessage.accepted();
+					System.out.println("Inserted record for " + body);
+				}
+			}
+		);
+	}
+
+	// ...
+}
+```
 
 # Dashboard
 
 Lukas
 
+## Design
+
+## Implementierung und Konfiguration
+
 AMQP-Receiver-Konfiguration erklären
+
+## Testfälle
