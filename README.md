@@ -1,3 +1,46 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Architektur](#architektur)
+  - [MQTT mit Eclipse Mosqitto](#mqtt-mit-eclipse-mosqitto)
+    - [Collector (aus Architektursicht)](#collector-aus-architektursicht)
+  - [AMQP](#amqp)
+    - [AMQP mit Apache ActiveMQ Artemis](#amqp-mit-apache-activemq-artemis)
+    - [Bestätigungen](#best%C3%A4tigungen)
+    - [Serialisierungsformat](#serialisierungsformat)
+  - [Skalierbarkeit](#skalierbarkeit)
+    - [Collector](#collector)
+    - [Frontend und Dashboard](#frontend-und-dashboard)
+    - [Persistence](#persistence)
+    - [Demonstration](#demonstration)
+- [Wetterstationen](#wetterstationen)
+  - [Nachrichtenformat](#nachrichtenformat)
+  - [Simulator](#simulator)
+  - [ESP8266-basierte Wetterstation](#esp8266-basierte-wetterstation)
+- [Collector](#collector-1)
+  - [Design](#design)
+  - [Implementierung](#implementierung)
+  - [Konfiguration](#konfiguration)
+- [Frontend](#frontend)
+  - [Design](#design-1)
+  - [Implementierung](#implementierung-1)
+  - [React SPA](#react-spa)
+- [Persistence](#persistence-1)
+  - [Design](#design-2)
+    - [Behandlung von Duplikaten](#behandlung-von-duplikaten)
+  - [Implementierung und Konfiguration](#implementierung-und-konfiguration)
+- [Dashboard](#dashboard)
+  - [Design](#design-3)
+  - [Implementierung und Konfiguration](#implementierung-und-konfiguration-1)
+    - [Asynchronität](#asynchronit%C3%A4t)
+- [Testfälle](#testf%C3%A4lle)
+  - [ESP8266-basierte Wetterstation und Dashboard](#esp8266-basierte-wetterstation-und-dashboard)
+  - [Erkennung duplizierter Nachrichten](#erkennung-duplizierter-nachrichten)
+  - [Skalierbarkeit](#skalierbarkeit-1)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Architektur
 
 Die folgende Abbildung zeigt die Architektur des Systems.
@@ -164,7 +207,7 @@ Duplikate werden dadurch vermieden.
 ### Demonstration
 
 Die Demonstration der Skalierbarkeit erfolgt im Rahmen der Dokumentation der Testfälle.
-[Daher sei an dieser Stelle auf das entsprechende Kapitel gegen Ende des Protokolls verwiesen](#testfalle)
+[Daher sei an dieser Stelle auf das entsprechende Kapitel gegen Ende des Protokolls verwiesen](#skalierbarkeit-1)
 
 # Wetterstationen
 
