@@ -28,7 +28,7 @@ data_source = ColumnDataSource({
 
 plot = figure(
 	title = "Dashboard for weather station #" + os.getenv('WEATHER_STATION_ID'),
-	plot_height = 500,
+	plot_width = 1280,
 	tools="xpan,xwheel_zoom,xbox_zoom,reset",
 	x_axis_type = 'datetime'
 )

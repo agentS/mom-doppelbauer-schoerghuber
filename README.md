@@ -163,18 +163,8 @@ Duplikate werden dadurch vermieden.
 
 ### Demonstration
 
-Im Folgenden wird nun demonstriert, wie mehrere Instanzen eines jeden Services betrieben werden können.
-In der folgenden Demonstration wird ebenfalls auf die Funktionalität der einzelnen Komponenten eingegangen.
-
-- 3 Collector-Services
-- 2 Persistence-Services
-- 2 Frontend-Services
-	- 1 Web-Frontend-Service
-	- 1 Dashboard-Service
-
-**Status in Apache Artemis erwähnen**
-
-Lukas
+Die Demonstration der Skalierbarkeit erfolgt im Rahmen der Dokumentation der Testfälle.
+[Daher sei an dieser Stelle auf das entsprechende Kapitel gegen Ende des Protokolls verwiesen](#testfalle)
 
 # Wetterstationen
 
@@ -515,6 +505,12 @@ amqp_receiver_thread = Thread(target = run_amqp_receiver)
 amqp_receiver_thread.start()
 ```
 
+Der Server kann mit folgenden Befehl gestartet werden:
+
+```bash
+bokeh serve --show main.py
+```
+
 ### Asynchronität
 
 Wie bereits erwähnt, muss der AMQP-Subscriber in einem eigenen Container betrieben werden, um Asynchronität zu gewährleisten.
@@ -549,6 +545,141 @@ AttributeError: 'NoneType' object has no attribute 'getsockopt'
 Leider konnten wir aufgrund der knappen Zeit keine Lösung für das Problem finden.
 Wir vermuten, dass dies aufgrund von Versionsinkompatibilitäten in Tornado zwischen Bokeh und Apache Qpid Proton auftritt.
 
-## Testfälle
+# Testfälle
 
-Lukas
+In diesem Kapitel werden anhand eines Tests mit der ESP8266-basierten Wetterstation die funktionalen Anforderungen des Systems demonstriert.
+Anschließend wird die korrekte Behandlung duplizierter Nachrichten im Persistence-Service gezeigt.
+Ein Test der Skalierbarkeit des Systems rundet dieses Kapitel ab.
+
+## ESP8266-basierte Wetterstation und Dashboard
+
+Es ist uns ein besonderes Anliegen dieser Hausübung, dass unser System auch mit echten Messdaten, die von einer Wetterstation generiert werden, umgehen kann.
+Dies möchten wir nun in Kombination mit unserem Dashboard demonstrieren.
+
+Die folgende Abbildung zeigt einen Ausschnitt des Dashboards mit Messwerten für Temperatur und Luftfeuchtigkeit, die von der Wetterstation in Hardware in der Umgebung eines Zimmers aufgenommen wurden.
+Ein Gespräch mit dem Bruder eines Autoros, welcher technische Chemie an der TU Wien studiert, hat ergeben, dass die Werte plausibel sind.
+In der Abbildung sind auch sehr gut die Schwankungen, welche sich aufgrund der Ungenauigkeiten der (relativ günstigen) Sensoren und der Lage der Wetterstation im Raum ergeben.
+
+![Anzeige der Messwerte der ESP8266-basierten Wetterstation im Dashboard](doc/test/esp8266_weather_station/dashboard.png)
+
+Auch im Frontend ist zu sehen, dass die Werte der Wetterstation wie gewollt angezeigt werden, was in der unteren Abbildung ersichtlich ist.
+
+![Anzeige der Messwerte der ESP8266-basierten Wetterstation im Web-Frontend](doc/test/esp8266_weather_station/webFrontend.png)
+
+Als Nächstes folgen noch die Logmeldungen des Persistence-Services.
+Dies sind um einige mehr als im Dashboard aufgrund des Zoom-Ausschnitts zu sehen sind.
+
+```
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:06:47","measurement":{"temperature":22.7,"humidity":45.0,"airPressure":967.35}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:06:57","measurement":{"temperature":23.2,"humidity":36.3,"airPressure":967.07}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:08:00","measurement":{"temperature":23.3,"humidity":36.2,"airPressure":967.21}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:08:04","measurement":{"temperature":23.5,"humidity":35.4,"airPressure":967.19}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:08:08","measurement":{"temperature":23.5,"humidity":35.3,"airPressure":967.17}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:10:04","measurement":{"temperature":23.6,"humidity":35.4,"airPressure":967.22}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:10:22","measurement":{"temperature":23.9,"humidity":34.7,"airPressure":967.06}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:10:25","measurement":{"temperature":23.8,"humidity":34.4,"airPressure":967.12}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:11:25","measurement":{"temperature":23.8,"humidity":34.4,"airPressure":967.14}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:12:12","measurement":{"temperature":24.0,"humidity":34.1,"airPressure":967.13}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:12:20","measurement":{"temperature":24.0,"humidity":34.1,"airPressure":967.12}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:12:23","measurement":{"temperature":24.1,"humidity":34.2,"airPressure":967.04}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:12:34","measurement":{"temperature":24.0,"humidity":34.1,"airPressure":967.1}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:12:36","measurement":{"temperature":24.1,"humidity":34.1,"airPressure":966.9}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:12:40","measurement":{"temperature":24.1,"humidity":34.1,"airPressure":966.94}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:13:36","measurement":{"temperature":24.1,"humidity":34.1,"airPressure":966.9}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:13:38","measurement":{"temperature":24.2,"humidity":34.1,"airPressure":967.02}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:13:47","measurement":{"temperature":24.2,"humidity":34.1,"airPressure":966.93}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:13:50","measurement":{"temperature":24.2,"humidity":34.2,"airPressure":967.06}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:14:16","measurement":{"temperature":24.2,"humidity":34.2,"airPressure":966.98}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:14:24","measurement":{"temperature":23.9,"humidity":34.1,"airPressure":967.01}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:14:33","measurement":{"temperature":24.2,"humidity":34.3,"airPressure":967.05}}
+Inserted record for {"weatherStationId":10,"timestamp":"2020-04-28T14:14:38","measurement":{"temperature":24.2,"humidity":34.2,"airPressure":967.1}}
+```
+
+Die Artemis-Management-Konsole liefert ebenfalls interessante Einblicke in das System: So können beispielsweise die Producer und Consumer angezeigt werden.
+So zeigt die folgende Abbildung, dass es nur einen AMQP-Producer, nämlich den Collector gibt, welcher Nachrichten an die Adresse `measurement-records` sendet, was der Konfiguration entspricht.
+
+![Der einzige AMQP-Producer ist der Collector](doc/test/esp8266_weather_station/producers.png)
+
+Die AMQP-Consumer sind in der unteren Abbildung ersichtlich.
+Wie erwartet gibt es 3 Consumer: Ein Persistence-Service, welcher Nachrichten, die an die Adresse `measurement-records-persistence` gesendet werden, empfängt, sowie eine Instanz des Web-Frontends und eine Instanz des Dashboards, welche beide Nachrichten, die an die Adresse `measurement-records` gesendet werden, akzeptieren.
+Für die korrekte Weiterleitung von Kopien der Nachrichten der Adresse `measurement-records` an die Adresse `measurement-records-persistence` wurde ja in der Konfiguration von Apache ActiveMQ Aretmis die Divert-Funktionalität konfiguriert.
+
+![Als AMQP-Consumer gibt es jeweils eine Instanz des Persistence-Services, des Web-Frontends sowie des Dashboards](doc/test/esp8266_weather_station/consumers.png)
+
+Ebenso ist noch interessant, ob für den Persistence-Service die Bestätigungen korrekt behandelt werden.
+Wie in der in der folgenden Abbildung gezeigten Attributes-Ansicht der Queue für den Persistence-Service zu sehen ist, werden die Messages korrekt bestätigt, da sowohl die Anzahl der gesendeten Nachrichten als auch die Anzahl der bestätigten Nachrichten gleich groß sind (siehe letzte zwei Zeilen).
+
+![Alle Nachrichten, die an den Persistence-Service gesendet werden, werden von diesem bestätigt](doc/test/esp8266_weather_station/persistenceAcks.png)
+
+## Erkennung duplizierter Nachrichten
+
+Um zu erkennen, ob duplizierte Nachrichten richtig erkannt und behandelt, werden ein Wetterstationsimulator, welcher die selbe ID für zwei Messwerte sendet, ein Collector und ein Persistence-Service betrieben.
+Der Persistence-Service gibt bei Akzeptanz einer Nachricht aufgrund regulärer Speicherung oder bei Erkennung eines Duplikats eine Meldung mit dem Wetterdatum in JSON-Form aus.
+
+Die Daten, welcher der Wetterstationssimulator sendet, sind unten ausgegeben.
+Wie zu sehen ist, wird für jedes Datum die selbe Wetterstations-ID im Topic mitgesendet.
+Da der Collector den Teil nach den Sekunden wegschneidet, soll bei jedem Paar an Logmeldungen die erste Meldung in die Datenbank eingefügt werden, während die zweite Meldung als Duplikat erkannt werden soll.
+
+```
+[ INFO ] 2020-04-28T13:40:22.458143 : sensor-data/1 --> 81.72;92.84;92.18
+[ INFO ] 2020-04-28T13:40:22.459163 : sensor-data/1 --> 80.72;84.71;90.13
+[ INFO ] 2020-04-28T13:40:27.460430 : sensor-data/1 --> 99.23;98.36;98.51
+[ INFO ] 2020-04-28T13:40:27.461358 : sensor-data/1 --> 91.34;88.95;86.49
+[ INFO ] 2020-04-28T13:40:32.463071 : sensor-data/1 --> 93.18;83.32;83.58
+[ INFO ] 2020-04-28T13:40:32.464345 : sensor-data/1 --> 98.70;81.81;96.23
+[ INFO ] 2020-04-28T13:40:37.465798 : sensor-data/1 --> 84.21;90.22;94.41
+[ INFO ] 2020-04-28T13:40:37.466617 : sensor-data/1 --> 87.99;91.14;92.82
+[ INFO ] 2020-04-28T13:40:42.467679 : sensor-data/1 --> 91.59;95.23;83.75
+[ INFO ] 2020-04-28T13:40:42.468677 : sensor-data/1 --> 94.15;97.94;84.66
+```
+
+Unten folgt nun die Ausgabe des Persitence-Services.
+Wie gewollt, wird die erste Logmeldung in die Datenbank eingefügt, während jede zweite Meldung aufgrund des selben Zeitstempels und der selben Wetterstations-ID als Duplikat erkannt wird.
+
+```
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:22","measurement":{"temperature":81.72,"humidity":92.84,"airPressure":92.18}}
+Duplicated record not inserted for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:22","measurement":{"temperature":80.72,"humidity":84.71,"airPressure":90.13}}
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:27","measurement":{"temperature":99.23,"humidity":98.36,"airPressure":98.51}}
+Duplicated record not inserted for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:27","measurement":{"temperature":91.34,"humidity":88.95,"airPressure":86.49}}
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:32","measurement":{"temperature":93.18,"humidity":83.32,"airPressure":83.58}}
+Duplicated record not inserted for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:32","measurement":{"temperature":98.7,"humidity":81.81,"airPressure":96.23}}
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:37","measurement":{"temperature":84.21,"humidity":90.22,"airPressure":94.41}}
+Duplicated record not inserted for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:37","measurement":{"temperature":87.99,"humidity":91.14,"airPressure":92.82}}
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:42","measurement":{"temperature":91.59,"humidity":95.23,"airPressure":83.75}}
+Duplicated record not inserted for {"weatherStationId":1,"timestamp":"2020-04-28T13:40:42","measurement":{"temperature":94.15,"humidity":97.94,"airPressure":84.66}}
+```
+
+Auch in der PostgreSQL-Datenbank zeigt sich, dass die duplizierten Werte nicht eingefügt wurden (die anderen Werte gehen auf vorherige Tests zurück).
+
+```
+weatherdata=> select * from measurement;
+ station_id | temperature | humidity | air_pressure |     created_at      
+------------+-------------+----------+--------------+---------------------
+          1 |       80.13 |    86.05 |        92.59 | 2020-04-27 20:15:34
+          1 |       82.41 |    90.41 |        97.46 | 2020-04-27 20:15:39
+          1 |       85.41 |    96.21 |        97.04 | 2020-04-28 13:40:19
+          1 |       81.72 |    92.84 |        92.18 | 2020-04-28 13:40:22
+          1 |       99.23 |    98.36 |        98.51 | 2020-04-28 13:40:27
+          1 |       93.18 |    83.32 |        83.58 | 2020-04-28 13:40:32
+          1 |       84.21 |    90.22 |        94.41 | 2020-04-28 13:40:37
+          1 |       91.59 |    95.23 |        83.75 | 2020-04-28 13:40:42
+          2 |       80.43 |    96.03 |         91.4 | 2020-04-27 20:15:34
+          2 |       97.18 |    83.11 |        86.08 | 2020-04-27 20:15:39
+(10 rows)
+```
+
+## Skalierbarkeit
+
+Im Folgenden wird nun sowohl die Funktionalität als auch die Skalierbarkeit des Systems demonstriert und gezeigt, wie mehrere Instanzen eines jeden Services betrieben werden können.
+Hierzu werden im Test die in der folgenden Liste zu sehenden Instanzen der Services betrieben:
+
+- 3 MQTT-Broker (Eclipse Mosquitto)
+- 1 AMQP-Broker (Apache ActiveMQ Artemis)
+- 3 Wetterstationssimulatoren, die je 3 Wetterstationen simulieren
+- 3 Collector-Services
+- 2 Persistence-Services
+- 3 Frontend-Services
+	- 2 Web-Frontend-Service
+	- 1 Dashboard-Service
+
+
