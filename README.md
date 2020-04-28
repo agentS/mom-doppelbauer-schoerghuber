@@ -422,12 +422,133 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 
 # Dashboard
 
-Lukas
+Um auch die AMQP-Unterstützung anderer Programmiersprachen als Java zu testen, haben wir noch ein Dashboard, welches die Wetterdaten einer Station anzeigt, mit Python und dem Framework [Bokeh](https://bokeh.org/) entwickelt.
+Als AMQP-Client haben wir [Apache Qpid Proton](https://qpid.apache.org/proton/) verwendet, wobei sich alternativ Microsofts Implementierung [Azure uAMQP for Python](https://github.com/Azure/azure-uamqp-python) angeboten hätte.
 
 ## Design
 
+Der AMQP-Subscriber empfängt die aktuellsten Nachrichten, extrahiert das JSON-Objekt, erzeugt daraus ein DTO und reicht es an die Bokeh-Komponenten weiter.
+Daraufhin wird das Wetterdatum an die Liste der Wetterdaten angehängt, was dazu führt, dass der Bokeh-Server die neuen Daten automatisch an den Browser sendet, in welchem diese durch den Bokeh-Client geparst und angezeigt werden. 
+
 ## Implementierung und Konfiguration
 
-AMQP-Receiver-Konfiguration erklären
+Aufgrund des Themas der Hausübung konzentriert sich die Dokumentation der Übung auf den AMQP-Subscriber in Python.
+Zu Bokeh gilt es aber zu sagen, dass mit minimalem Code und überschaubaren Aufwand sehr gute Ergebnisse erzielt werden können, auch erweiterte Funktionalitäten zur Verfügung stehen und wir das Framework nur weiterempfehlen können.
+
+Das folgende Snippet zeigt den AMQP-Consumer.
+Dieser stellt zuerst eine Verbindung mit dem AMQP-Broker her, wobei die Container-ID aufgrund eines Fehlers im Konstruktor der Verbindungsklasse manuell über ein Property gesetzt werden muss.
+Die Container-ID dient erneut zur besseren Identifiezierung des Clients.
+Beim Erstellen des Receivers werden neben der Adresse auch die Optionen zum Setzen des QoS-Levels auf 0 (`AtMostOnce`) und zur Speicherung der Nachrichten auch über Offline-Perioden des AMQP-Subscribers (`DurableSubscription`).
+
+Die Verarbeitung von Nachrichten erfolgt in der Methode `on_message`, wobei die Konvention der Basisklasse `MessagingHandler` die Methode `on_message` der abgeleiteten Klasse automatisch als Handler registriert.
+
+```python
+from proton.reactor import AtMostOnce, DurableSubscription, DynamicNodeProperties
+from proton.handlers import MessagingHandler
+
+from dto.WeatherRecordDto import WeatherRecordDto
+from dto.json.WeatherRecordDtoJsonParser import create_weather_record_dto_from_json
+
+
+class WeatherRecordReceiver(MessagingHandler):
+	def __init__(self, url: str, queue: str, username: str, password: str, container_id: str, weather_station_id: int, record_received_callback):
+		super(WeatherRecordReceiver, self).__init__()
+		self.url = url
+		self.queue = queue
+		self.username = username
+		self.password = password
+		self.container_id = container_id
+		self.weather_station_id = weather_station_id
+		self.record_received_callback = record_received_callback
+		self.received = 0
+
+	def on_start(self, event):
+		event.container.container_id = self.container_id
+		self.connection = event.container.connect(
+			self.url,
+			address = self.queue,
+			user = self.username,
+			password = self.password,
+		)
+		event.container.create_receiver(
+			self.connection, self.queue,
+			name = self.queue,
+			options = [AtMostOnce(), DurableSubscription()],
+		)
+
+	def on_message(self, event):
+		weather_record_dto = create_weather_record_dto_from_json(event.message.body.decode("utf-8"))
+		self.received += 1
+		if weather_record_dto.weather_station_id == self.weather_station_id:
+			self.record_received_callback(weather_record_dto)
+```
+
+Der unten folgende Code zeigt noch die Funktionalität zum Starten des AMQP-Subscribers sowie des Aufrufes der Funktion zum Anhängen der Daten des DTOs an die Datenquelle des Diagramms.
+Da Python per se nicht asynchron wie z.B. NodeJS oder Vert.x agiert, muss der AMQP-Receiver in einem asynchronen Container betrieben werden, um den Hauptthread nicht zu blockieren.
+Da durch den Betrieb des Containers jedoch der Hauptthread, welcher für den Betrieb des Bokeh-Servers benötigt wird, blockiert wird, mussten wir einen eigenen Thread für den AMQP-Consumer-Container starten.
+Im folgenden Unterkapitel erläutern wir Alternativen und die Probleme, welche wir mit der Alternative hatten, genauer.
+
+```python
+def handle_weather_record(dto: WeatherRecordDto):
+	document.add_next_tick_callback(partial(update_data, dto = dto))
+
+def run_amqp_receiver():
+	print('starting the AMQP receiver')
+	amqp_receiver = Container(
+		WeatherRecordReceiver(
+			url = os.getenv('AMQP_URL'),
+			queue = os.getenv('AMQP_QUEUE'),
+			username = os.getenv('AMQP_USERNAME'),
+			password = os.getenv('AMQP_PASSWORD'),
+			container_id = os.getenv('AMQP_CONTAINER_ID'),
+			weather_station_id = int(os.getenv('WEATHER_STATION_ID')),
+			record_received_callback = handle_weather_record
+		)
+	)
+	try:
+		amqp_receiver.run()
+	except KeyboardInterrupt:
+		print('stopping the AMQP receiver')
+	print('stopped the AMQP receiver')
+
+amqp_receiver_thread = Thread(target = run_amqp_receiver)
+amqp_receiver_thread.start()
+```
+
+### Asynchronität
+
+Wie bereits erwähnt, muss der AMQP-Subscriber in einem eigenen Container betrieben werden, um Asynchronität zu gewährleisten.
+Da der Bokeh-Server ebenfalls in einem Container betrieben wird, genauer gesagt in einem Tornado-Server-Container, und Apache Qpid Proton es ermöglichen sollte, den AMQP-Subscriber [ebenfalls in einem Tornado-Container auszuführen](https://qpid.apache.org/releases/qpid-proton-0.30.0/proton/python/examples/client_http.py.html), haben wir uns an dieser Lösungsvariante versucht.
+Unsere Versuche haben wir dabei [in einer eigenständigen Python-Datei](dashboard/main_tornado.py) festgehalten.
+
+Allerdings hat der [Container zum Betrieb des AMQP-Consumers in einem Tornado-Container](https://qpid.apache.org/releases/qpid-proton-0.30.0/proton/python/examples/proton_tornado.py.html) immer die folgende Ausnahmesituation erzeugt:
+
+```
+ERROR:asyncio:Exception in callback BaseAsyncIOLoop._handle_events(9, 4)
+handle: <Handle BaseAsyncIOLoop._handle_events(9, 4)>
+Traceback (most recent call last):
+  File ".../envs/sve2-mom/lib/python3.7/asyncio/events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File ".../envs/sve2-mom/lib/python3.7/site-packages/tornado/platform/asyncio.py", line 139, in _handle_events
+    handler_func(fileobj, events)
+  File "/media/SSD_EXT4/programming/java/sve2/mom-doppelbauer-schoerghuber/dashboard/amqp/proton_tornado.py", line 54, in <lambda>
+    self.loop.add_handler(sel.fileno(), lambda fd, events: self._callback(sel, events), self._e^CTraceback (most recent call last):
+  File ".../envs/sve2-mom/lib/python3.7/asyncio/events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File ".../envs/sve2-mom/lib/python3.7/site-packages/tornado/platform/asyncio.py", line 139, in _handle_events
+    handler_func(fileobj, events)
+  File "/media/SSD_EXT4/programming/java/sve2/mom-doppelbauer-schoerghuber/dashboard/amqp/proton_tornado.py", line 54, in <lambda>
+    self.loop.add_handler(sel.fileno(), lambda fd, events: self._callback(sel, events), self._events(sel))
+  File "/media/SSD_EXT4/programming/java/sve2/mom-doppelbauer-schoerghuber/dashboard/amqp/proton_tornado.py", line 48, in _callback
+    sel.writable()
+  File ".../envs/sve2-mom/lib/python3.7/site-packages/proton/_handlers.py", line 1399, in writable
+    e = self._delegate.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+AttributeError: 'NoneType' object has no attribute 'getsockopt'
+```
+
+Leider konnten wir aufgrund der knappen Zeit keine Lösung für das Problem finden.
+Wir vermuten, dass dies aufgrund von Versionsinkompatibilitäten in Tornado zwischen Bokeh und Apache Qpid Proton auftritt.
 
 ## Testfälle
+
+Lukas
