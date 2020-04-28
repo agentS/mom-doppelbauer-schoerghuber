@@ -3,41 +3,42 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Architektur](#architektur)
-  - [MQTT mit Eclipse Mosqitto](#mqtt-mit-eclipse-mosqitto)
-    - [Collector (aus Architektursicht)](#collector-aus-architektursicht)
-  - [AMQP](#amqp)
-    - [AMQP mit Apache ActiveMQ Artemis](#amqp-mit-apache-activemq-artemis)
-    - [Bestätigungen](#best%C3%A4tigungen)
-    - [Serialisierungsformat](#serialisierungsformat)
-  - [Skalierbarkeit](#skalierbarkeit)
-    - [Collector](#collector)
-    - [Frontend und Dashboard](#frontend-und-dashboard)
-    - [Persistence](#persistence)
-    - [Demonstration](#demonstration)
+	- [MQTT mit Eclipse Mosqitto](#mqtt-mit-eclipse-mosqitto)
+		- [Collector](#collector)
+		- [QoS](#qos)
+	- [AMQP](#amqp)
+		- [AMQP mit Apache ActiveMQ Artemis](#amqp-mit-apache-activemq-artemis)
+		- [Bestätigungen](#best%c3%a4tigungen)
+		- [Serialisierungsformat](#serialisierungsformat)
+	- [Skalierbarkeit](#skalierbarkeit)
+		- [Collector](#collector-1)
+		- [Frontend und Dashboard](#frontend-und-dashboard)
+		- [Persistence](#persistence)
+		- [Demonstration](#demonstration)
 - [Wetterstationen](#wetterstationen)
-  - [Nachrichtenformat](#nachrichtenformat)
-  - [Simulator](#simulator)
-  - [ESP8266-basierte Wetterstation](#esp8266-basierte-wetterstation)
-- [Collector](#collector-1)
-  - [Design](#design)
-  - [Implementierung](#implementierung)
-  - [Konfiguration](#konfiguration)
+	- [Nachrichtenformat](#nachrichtenformat)
+	- [Simulator](#simulator)
+	- [ESP8266-basierte Wetterstation](#esp8266-basierte-wetterstation)
+- [Collector](#collector-2)
+	- [Design](#design)
+	- [Implementierung](#implementierung)
+	- [Konfiguration](#konfiguration)
 - [Frontend](#frontend)
-  - [Design](#design-1)
-  - [Implementierung](#implementierung-1)
-  - [React SPA](#react-spa)
+	- [Implementierung](#implementierung-1)
+	- [Konfiguration](#konfiguration-1)
+	- [React SPA](#react-spa)
 - [Persistence](#persistence-1)
-  - [Design](#design-2)
-    - [Behandlung von Duplikaten](#behandlung-von-duplikaten)
-  - [Implementierung und Konfiguration](#implementierung-und-konfiguration)
+	- [Design](#design-1)
+		- [Behandlung von Duplikaten](#behandlung-von-duplikaten)
+	- [Implementierung und Konfiguration](#implementierung-und-konfiguration)
 - [Dashboard](#dashboard)
-  - [Design](#design-3)
-  - [Implementierung und Konfiguration](#implementierung-und-konfiguration-1)
-    - [Asynchronität](#asynchronit%C3%A4t)
-- [Testfälle](#testf%C3%A4lle)
-  - [ESP8266-basierte Wetterstation und Dashboard](#esp8266-basierte-wetterstation-und-dashboard)
-  - [Erkennung duplizierter Nachrichten](#erkennung-duplizierter-nachrichten)
-  - [Skalierbarkeit](#skalierbarkeit-1)
+	- [Design](#design-2)
+	- [Implementierung und Konfiguration](#implementierung-und-konfiguration-1)
+		- [Asynchronität](#asynchronit%c3%a4t)
+- [Testfälle](#testf%c3%a4lle)
+	- [ESP8266-basierte Wetterstation und Dashboard](#esp8266-basierte-wetterstation-und-dashboard)
+	- [Erkennung duplizierter Nachrichten](#erkennung-duplizierter-nachrichten)
+	- [Skalierbarkeit](#skalierbarkeit-1)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -53,14 +54,23 @@ Die Persistierung der Wetterdaten in eine PostgreSQL-Datenbank übernehmen die P
 ![Architekturdiagramm](doc/architecture.png)
 
 ## MQTT mit Eclipse Mosqitto
+Message Queuing Telemetry Transport (MQTT) ist ein offenes Netzwerkprotokoll um eine Kommunikation von einer Maschine zu einer Maschine (M2M) zu realisieren. Insbesondere ist es zum Vernetzen von Geräten mit geringen Ressourcen geeignet. Da unser Anwendungsfall darin besteht Daten von Wetterstationen zu verarbeiten und es sich hierbei meist um kleine Stationen mit wenig Ressourcen bzw. Leistung handelt haben wir uns dazu entschieden das MQTT Protokoll zum Übermitteln der Daten von den Wetterstationen zu unseren Services zu verwenden. Hierbei haben wir uns für den MQTT Broker Eclipse-Mosquitto entschieden. Eclipse Mosquitto ist ein quelloffener Nachrichten Broker (EPL/EDL Lizenz). Dieser kann bequem in einem Docker Container gehostet werden.
 
-Alexander
+Hinter MQTT verbirgt sich eine leichtgewichtige Publish/Subscribe Lösung, bei der man Topics einrichten kann. Über diese Topics können Clients in der Rolle eines Publishers Nachrichten bereitstellen und andere Clients in der Rolle des Subscribers Nachrichten entnehmen.
 
-### Collector (aus Architektursicht)
+![MQTT](doc/mqtt.PNG)
 
-- MQTT-QoS Level 2 --> Funktioniert das überhaupt so, dass der Publisher mit QoS 0 sendet und der Consumer mit QoS 2 Nachrichten empfängt?
 
-Alexander
+### Collector
+Der Collector Service übernimmt in unserer Architektur die Aufgabe die Nachrichten des MQTT Brokers zu empfangen und an eine, in ihrem Leistungsumfang nicht so beschränkte, AMQP Queue weiterzuleiten. Die Verwendung von zwei Brokern ermöglicht uns die unterschiedlichen Lasten, welche auf Seiten der Wetterstationen und auf Seiten der Endbenutzer, welche das Frontend benutzen, anfallen voneinander getrennt zu behandeln.
+
+### QoS
+QoS spezifiziert die Semantik des Nachrichtentransfers.
+* Bei **QoS 0** handelt es sich um die niedrigste Stufe. Eine "fire and forget" Semantik.
+* Bei **QoS 1** wird sichergestellt, dass die Nachricht mindestens einmal in der Topic-Queue landet.
+* Bei **QoS 2** garantiert der Broker, dass die Nachricht nur genau einaml ebgelegt wird.
+
+Interessant an dieser Stelle ist, dass man die beide Seiten der Nachrichten Kommunikation berücksichtigen muss: Den Client, welcher die Rolle des Publishers einnimmt und Nachrichten an den Broker mit einem gewissen QoS sendet. Den Client, welcher die Rolle des Subscribers einnimmt und Nachrichten mit einem bestimmten QoS vom Broker bezieht (QoS wird vom Subscriber festgelegt). In dem Fall, dass der Publisher mit einer höheren QoS an den Broker sendet als der Subscriber angegeben hat übermittelt der Broker die Nachricht mit dem geringeren QoS an den Subscriber. Dies bietet dem Client die Möglichkeit die Auswahl des QoS abhängig von der Netzwerkverfügbarkeit sowie der Applikationslogik zu machen.
 
 ## AMQP
 
@@ -212,14 +222,79 @@ Die Demonstration der Skalierbarkeit erfolgt im Rahmen der Dokumentation der Tes
 # Wetterstationen
 
 ## Nachrichtenformat
+Die Wetterstationen liefern pro Nachricht immer einen Wert für die Temperatur, die Luftfeuchtigkeit und den Luftdruck. Hierbei haben wir uns für ein Csv Format entschieden um die Payload möglichst klein zu halten. Die Payload ist wie folgt aufgebaut: `97.13;95.34;82.31`. Die einzelnen Werte sind durch ein Semikolon voneinander getrennt und werden immer in derselben Reihenfolge von den Wetterstationen gesendet.
 
-Alexander
-
-CSV-Format und Topic-Namen beschreiben
+Diese Payload wird an ein Topic gesendet. Dieses ist mehrstufig aufgebaut und setzt sich aus einem Topic Namen und der Id der Wetterstation zusammen: `sensor-data/1`. Da jede Station ein eigenes Topic hat verwendet der Collector Service ein Wildcard um diese alle zusammen zu empfangen. Dies wird in der Datei `application.json` wiefolgt konfiguriert: `mp.messaging.incoming.mqtt-sensor-data.topic = sensor-data/+`. Das `+` steht hier für ein "Single Level". Es ersetzt also nur genau ein Level der Topic Struktur.
 
 ## Simulator
 
-Alexander
+Um Nachrichten von Wetterstationen simulieren zu können haben wir einen Simulator entwickelt, welcher im Abstand von fünf Sekunden Nachrichten an den MQTT Broker mit Zufallswerten sendet.
+
+Zur Umsetzung haben wir uns für das Framework Eclipse Paho entschieden. Es handelt sich hierbei um eine open-source Client Implementierung von MQTT. Die Implementierung ist nachfolgend dargestellt. Zuerst wird eine Verbindung zum MQTT  Broker hergestellt und anschließend Nachrichten mittels `call()` mit einem QoS 0 an den Broker gesendet.
+
+```java
+public class MqttMessageGenerator implements Callable<Void> {
+    public static final String MQTT_BROKER_URI_PREFIX = "tcp://";
+    public static final int MQTT_CONNECTION_TIMEOUT = 10;
+    public static final String TOPIC_PREFIX = "sensor-data";
+
+    private IMqttClient client;
+    private List<StationSimulator> stationSimulators;
+    private final String mqttBrokerUri;
+
+    public MqttMessageGenerator(
+            List<StationSimulator> stationSimulators,
+            final String mqttBrokerHostname,
+            final int mqttBrokerPort
+    ) throws Exception {
+        this.mqttBrokerUri = MQTT_BROKER_URI_PREFIX + mqttBrokerHostname + ":" + mqttBrokerPort;
+        this.client = createMqttClient(this.mqttBrokerUri);
+        this.stationSimulators = stationSimulators;
+    }
+
+    /**
+     * create new MQTT client
+     * */
+    public static IMqttClient createMqttClient(final String mqttBrokerUri) throws Exception {
+        String publisherId = UUID.randomUUID().toString();
+        IMqttClient publisher = new MqttClient(mqttBrokerUri, publisherId);
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setAutomaticReconnect(true);
+        options.setCleanSession(true);
+        options.setConnectionTimeout(MQTT_CONNECTION_TIMEOUT);
+        publisher.connect(options);
+        return publisher;
+    }
+
+    /**
+     * publish messages to MQTT queue generated by the weather station simulators
+     * */
+    public Void call() throws Exception {
+        if ( !client.isConnected()) {
+            System.err.println("[ INFO ] " + LocalDateTime.now() + "client not connected");
+            return null;
+        }
+        for(StationSimulator stationSimulator : stationSimulators){
+            String topic = TOPIC_PREFIX + "/" + stationSimulator.getId();
+            MqttMessage msg = readMessage(stationSimulator);
+            msg.setQos(0);
+            msg.setRetained(true);
+            client.publish(topic, msg);
+            System.out.println("[ INFO ] " + LocalDateTime.now() + " : " + topic + " --> " + msg);
+        }
+        return null;
+    }
+
+    /**
+     * read message from station simulator and create to MQTT message
+     * */
+    private MqttMessage readMessage(StationSimulator stationSimulator) {
+        String message = stationSimulator.generateMessage();
+        byte[] payload = message.getBytes();
+        return new MqttMessage(payload);
+    }
+}
+```
 
 ## ESP8266-basierte Wetterstation
 
@@ -250,7 +325,7 @@ Eine gute Illustration zeigt das folgende Bild aus der Dokumentation von SmallRy
 
 ![Relation von CDI-Beans und Channels](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/_images/channels.png)
 
-Ein Connector stellt anschließend die Verbindung zwischen einem Chanell und einem Message-Broker her.
+Ein Connector stellt anschließend die Verbindung zwischen einem Channel und einem Message-Broker her.
 Dabei werden von einem Broker gesendete Nachrichten auf einen eingehenden Kanal gemappt und von einem Kanal ausgehende Nachrichten gesammelt an einen Broker geschickt.
 Der Broker kann es sich dabei entweder eine MQTT-, eine AMQP- oder eine Kafka-Instanz handeln.
 Dies wird wiederum in der SmallRye-Dokumentation sehr anschaulich illustriert:
@@ -339,18 +414,159 @@ mqtt.topic-prefix = sensor-data/
 ```
 
 # Frontend
-
-Alexander
-
-## Design
+Die Aufgabe des Frontend-Services ist es, sich als Subscriber für Wetterdaten, die über AMQP übertragen werden, zu registrieren und diese über einen WebSocket Enpoint nach außen zur Verfügung zu stellen. Weiters stellt der Frontend-Service eine REST Schnitstelle zur Verfügung über welche neue Wetterstationen angelegt und deren Stations Name geändert werden kann. 
+Der Frontend-Service ist mit [Quarkus](https://quarkus.io/) und mit dessen Implementierung von [MicroProfile Reactive Messaging 1.0](https://download.eclipse.org/microprofile/microprofile-reactive-messaging-1.0/microprofile-reactive-messaging-spec.pdf), welche auf der [SmallRye-Implementierung](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/) beruht, realisiert. Die WebSockets wurden mittels der Undertow-Websockets implementierung realisiert.
 
 ## Implementierung
+Um die Anzahl der Nachrichten, welche über den WebSocket gesendet werden auf der Client Seite klein zu halten bietet der Frontend-Service einen Server Endpunkt `@ServerEndpoint("/stations/socket/{stationId}")` über welchen sich ein Client mit einem EventListener für eine bestimmte Station (über die Id der Wetterstation) registrieren kann. Dieser `WeatherStationSocket` verwendet für die Verwaltung der Client Sessions einen `SocketManager`. Hierbei handelt es sich um ein Cdi Bean mit ApplicationScope.
 
-Annotationen + Konfiguration (`application.properties`) erklären
+```java
+@ServerEndpoint("/stations/socket/{stationId}")
+@ApplicationScoped
+public class WeatherStationSocket {
+    private SocketManager socketManager;
+
+    @Inject
+    public WeatherStationSocket(SocketManager socketManager){
+        this.socketManager = socketManager;
+    }
+
+    @OnOpen
+    public void onOpen(Session session, @PathParam("stationId") String stationId) {
+        socketManager.add(stationId, session);
+    }
+
+    @OnClose
+    public void onClose(Session session, @PathParam("stationId") String stationId) {
+        socketManager.remove(stationId, session);
+    }
+
+    @OnError
+    public void onError(Session session, @PathParam("stationId") String stationId,
+                        Throwable throwable) {
+        socketManager.remove(stationId, session);
+    }
+}
+```
+
+Der `WebSocketManager` verwaltet die Client Sessions und speichert in für welche Stationen sich ein Client registriert hat. Durch den Aufruf der `broadcast` Methode wird die übergebene Nachricht an alle Clients gesendet, welche sich für die betroffene Station registriert haben.
+
+```java
+@ApplicationScoped
+public class WebSocketManager implements SocketManager {
+    private Map<String, List<Session>> sessions;
+
+    public WebSocketManager(){
+        this.sessions = new ConcurrentHashMap<>();
+    }
+
+    @Override
+    public void remove(String stationId, Session session) {
+        if(sessions.containsKey(stationId)){
+            List<Session> tmpSessions = sessions.get(stationId);
+            tmpSessions.remove(session);
+            if(tmpSessions.isEmpty()){
+                sessions.remove(stationId);
+            }
+        }
+    }
+
+    @Override
+    public void add(String stationId, Session session) {
+        if(!sessions.containsKey(stationId)){
+            sessions.put(stationId, new ArrayList<>());
+        }
+        sessions.get(stationId).add(session);
+    }
+
+    @Override
+    public void broadcast(String stationId, String message) {
+        for(Map.Entry<String, List<Session>> entry : sessions.entrySet()){
+            if(entry.getKey().equals(stationId)){
+                for(Session session : entry.getValue()){
+                    session.getAsyncRemote().sendObject(message, result -> {
+                        if (result.getException() != null) {
+                            System.out.println("Unable to send message: " + result.getException());
+                        }
+                    });
+                }
+            }
+        }
+    }
+}
+```
+
+Der `AmqpConsumer` ist ein Subscriber und empfängt die Nachrichten aus der AMQP Queue `@Incoming("measurement-records")`. Da es in diesem Fall egal ist, wenn eine Nachricht verloren geht, und somit eventuell nicht jede Nachricht im Web Frontend angezeigt wird, haben wir uns dazu entschieden keine Bestätigungs Strategie zu verfolgen `@Acknowledgment(Acknowledgment.Strategy.NONE)`. Die empfangenen Nachrichten werden anschließend mittels JsonB deserialisiert und die Id der Wetterstation extrahiert. Anschließend wird mittels des `socketManager` eine Nachricht an alle Clients gesendet, welche die Sensordaten der jeweiligen Station im Json Format beinhaltet.
+
+```java
+@ApplicationScoped
+public class AmqpConsumer {
+    private SocketManager socketManager;
+
+    @Inject
+    public AmqpConsumer(SocketManager socketManager){
+        this.socketManager = socketManager;
+    }
+
+    @Incoming("measurement-records")
+    @Acknowledgment(Acknowledgment.Strategy.NONE)
+    public void process(String message) {
+        System.out.println("received: " + message);
+        Jsonb jsonBuilder = JsonbBuilder.create();
+        RecordDto record = jsonBuilder.fromJson(message, RecordDto.class);
+        socketManager.broadcast(String.valueOf(record.getWeatherStationId()), message);
+    }
+}
+```
+
+## Konfiguration
+Konfiguriert werden muss die Datenbank Verbindung zur PostgreSql Datenbank, in welcher die Stationsdaten verwaltet werden. Weiters werden die Connectoren, welche die Channels mit den Brokern verbinden, in der Konfiguration festgelegt. Die Festlegung der Container-ID dient wieder zur besseren Identifizierbarkeit am AMQP-Broker. Weiters wird festgelegt, dass die Queue nicht durable ist, also die Nachrichten bei Verbindungsabrissen nicht bestehen bleiben
+
+```properties
+quarkus.datasource.db-kind = postgresql
+quarkus.datasource.username = postgres
+quarkus.datasource.password = postgres
+quarkus.datasource.jdbc.url = jdbc:postgresql://localhost:5432/weatherstation_db
+
+quarkus.http.cors=true
+
+# Configures the AMQP broker credentials.
+amqp-username=weatherdata
+amqp-password=thunderstorm
+
+# Configure the AMQP connector to read from the `measurement-records` queue
+mp.messaging.incoming.measurement-records.connector=smallrye-amqp
+mp.messaging.incoming.measurement-records.containerId=frontend
+mp.messaging.incoming.measurement-records.durable=false
+```
 
 ## React SPA
 
-Alexander
+Das Web-Frontend haben wir als React SPA realisiert. Dabei kommuniziert die Webanwendung einerseits mit der REST Schnittstelle des Frontend-Service und andererseits kann eine Verbindung zu dessen WebSocket Endpunkt hergestellt werden, um die Messwerte der ausgewählten Wetterstation ständig updaten zu können. Die REST Aufrufe werden mittels des Frameworks `axios` realisiert. Die WebSocket Verbindung mittels `WebSocket`. 
+
+Sendet der Service neue Messwerte, wird der `state` der Komponente aktualisiert. Der Benutzer muss jedoch explizit mittels des **Select Buttons** eine Station auswählen für deren Nachrichten er sich registrieren möchte.
+
+```js
+connectToStationSocket(stationId, ob) {
+    if(connected){
+        socket.close();
+        connected = false;
+    }
+    if (! connected) {
+        console.log("stationId: " + stationId);
+        socket = new WebSocket(SOCKET_ENDPOINT_PREFIX + stationId);
+        socket.onopen = function() {
+            connected = true;
+            console.log("Connected to the web socket");
+        };
+        socket.onmessage =function(m) {
+            console.log("Got message: " + m.data);
+            let message = JSON.parse(m.data);
+            ob.setState({ stationEvent: message });
+        };
+    }
+  };
+```
 
 # Persistence
 
