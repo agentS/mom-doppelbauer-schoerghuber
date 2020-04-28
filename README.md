@@ -603,6 +603,7 @@ So zeigt die folgende Abbildung, dass es nur einen AMQP-Producer, nämlich den C
 Die AMQP-Consumer sind in der unteren Abbildung ersichtlich.
 Wie erwartet gibt es 3 Consumer: Ein Persistence-Service, welcher Nachrichten, die an die Adresse `measurement-records-persistence` gesendet werden, empfängt, sowie eine Instanz des Web-Frontends und eine Instanz des Dashboards, welche beide Nachrichten, die an die Adresse `measurement-records` gesendet werden, akzeptieren.
 Für die korrekte Weiterleitung von Kopien der Nachrichten der Adresse `measurement-records` an die Adresse `measurement-records-persistence` wurde ja in der Konfiguration von Apache ActiveMQ Aretmis die Divert-Funktionalität konfiguriert.
+Darüber hinaus lässt sich in diesem Bild schön sehen, dass der Persistence-Service eine Anycast-Queue verwendet, während sowohl Dashboard als auch Web-Frontend eine Multicast-Queue verwenden.
 
 ![Als AMQP-Consumer gibt es jeweils eine Instanz des Persistence-Services, des Web-Frontends sowie des Dashboards](doc/test/esp8266_weather_station/consumers.png)
 
@@ -682,4 +683,166 @@ Hierzu werden im Test die in der folgenden Liste zu sehenden Instanzen der Servi
 	- 2 Web-Frontend-Service
 	- 1 Dashboard-Service
 
+Um die Services zu starten wurden JAR-Archive der Services erstellt und die folgenden Befehle ausgeführt:
 
+```bash
+# Collector services
+java -Dquarkus.http.port=8085 -Dmp.messaging.incoming.mqtt-sensor-data.port=1883 -Dmp.messaging.incoming.mqtt-sensor-data.client-id=eu.collector.mqtt -Dmp.messaging.outgoing.amqp-measurement-records.containerId=eu.collector -jar collector.jar
+java -Dquarkus.http.port=8086 -Dmp.messaging.incoming.mqtt-sensor-data.port=1884 -Dmp.messaging.incoming.mqtt-sensor-data.client-id=us.collector.mqtt -Dmp.messaging.outgoing.amqp-measurement-records.containerId=us.collector -jar collector.jar
+java -Dquarkus.http.port=8087 -Dmp.messaging.incoming.mqtt-sensor-data.port=1885 -Dmp.messaging.incoming.mqtt-sensor-data.client-id=ca.collector.mqtt -Dmp.messaging.outgoing.amqp-measurement-records.containerId=ca.collector -jar collector.jar
+
+# Web frontend services
+java -Dquarkus.http.port=8080 -Dmp.messaging.incoming.measurement-records.containerId=frontend.charlie -jar frontend.jar
+java -Dquarkus.http.port=8081 -Dmp.messaging.incoming.measurement-records.containerId=frontend.delta -jar frontend.jar
+
+# Persistence services
+java -jar persist.jar
+java -jar persist.jar
+
+# Dashboard
+bokeh serve --show main.py
+
+# SPA web frontend
+npm start
+
+# Weather station simulators
+java -jar stationSimulator-0.jar 0 127.0.0.1 1883
+java -jar stationSimulator-0.jar 3 127.0.0.1 1884
+java -jar stationSimulator-0.jar 6 127.0.0.1 1885
+```
+
+In der Artemis-Webkonsole kann man nun sehen, dass sich drei Instanzen des Collectors als Producer registriert haben, wie die unten zu sehende Abbildung zeigt.
+
+![3 Instanzen des Collector-Services sind als AMQP-Producer registriert](doc/test/upscaling/producers.png)
+
+Nun sind auch die zu erwarteten 5 Instanzen der Consumer registriert, wie in der unten zu sehenden Abbildung gezeigt wird.
+
+![5 Instanzen der AMQP-Consumer sind registriert](doc/test/upscaling/consumers.png)
+
+Interessant ist in obiger Abbildung wieder, dass beiden Instanzen des Persistence-Service an einer Anycast-Queue registriert sind, wohingegegen die Instanzen des Web-Frontend-Services und des Dashboards and der Multicast-Queue registriert sind.
+Dies zeigt sich auch bei der Betrachtung der Logs der Services.
+Das folgende Snippet zeigt die Ausgaben des ersten Persistence-Services, welche seit dem 28. April 2020 um 15:15:42 Uhr 9 eingefügte Werte umfassen.
+
+```
+Inserted record for {"weatherStationId":8,"timestamp":"2020-04-28T15:15:42","measurement":{"temperature":82.06,"humidity":85.72,"airPressure":98.88}}
+Inserted record for {"weatherStationId":4,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":95.92,"humidity":99.87,"airPressure":83.48}}
+Inserted record for {"weatherStationId":6,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":80.45,"humidity":98.86,"airPressure":87.73}}
+Inserted record for {"weatherStationId":2,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":85.92,"humidity":85.18,"airPressure":87.24}}
+Inserted record for {"weatherStationId":7,"timestamp":"2020-04-28T15:15:47","measurement":{"temperature":83.99,"humidity":95.96,"airPressure":87.81}}
+Inserted record for {"weatherStationId":9,"timestamp":"2020-04-28T15:15:47","measurement":{"temperature":93.82,"humidity":95.16,"airPressure":85.69}}
+Inserted record for {"weatherStationId":5,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":86.08,"humidity":80.56,"airPressure":93.1}}
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":93.65,"humidity":91.03,"airPressure":95.21}}
+Inserted record for {"weatherStationId":3,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":94.81,"humidity":84.44,"airPressure":83.34}}
+```
+
+Im nun folgenden Ausgabeauszug findet sich der Log des zweiten Persistence-Services, welcher ebenfalls 9 Zeilen umfasst.
+Allerdings entspricht keiner dieser 9 eingefügten Wetterdaten jenen, die der erste Persistence-Service eingefügt hat, was bedeutet, dass die Anycast-Logik wie gewollt funktioniert.
+
+```
+Inserted record for {"weatherStationId":7,"timestamp":"2020-04-28T15:15:42","measurement":{"temperature":83.02,"humidity":95.71,"airPressure":97.8}}
+Inserted record for {"weatherStationId":9,"timestamp":"2020-04-28T15:15:42","measurement":{"temperature":86.67,"humidity":95.52,"airPressure":88.86}}
+Inserted record for {"weatherStationId":5,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":86.15,"humidity":96.18,"airPressure":92.14}}
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":84.46,"humidity":91.06,"airPressure":80.8}}
+Inserted record for {"weatherStationId":3,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":89.75,"humidity":99.27,"airPressure":85.24}}
+Inserted record for {"weatherStationId":8,"timestamp":"2020-04-28T15:15:47","measurement":{"temperature":92.86,"humidity":91.29,"airPressure":95.23}}
+Inserted record for {"weatherStationId":4,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":89.7,"humidity":95.24,"airPressure":81.41}}
+Inserted record for {"weatherStationId":6,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":90.49,"humidity":83.33,"airPressure":94.69}}
+Inserted record for {"weatherStationId":2,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":96.2,"humidity":97.14,"airPressure":93.81}}
+```
+
+Sowohl der erste als auch der zweite Frontend-Service erzeugen die identische Ausgabe, welche unten zu sehen ist.
+Diese umfasst 18 Datensätze, also die Summe jener, welche beide Persistence-Services eingefügt haben.
+Dadurch zeigt sich, dass auch die Multicast-Logik funktioniert.
+
+```
+received: {"weatherStationId":7,"timestamp":"2020-04-28T15:15:42","measurement":{"temperature":83.02,"humidity":95.71,"airPressure":97.8}}
+received: {"weatherStationId":8,"timestamp":"2020-04-28T15:15:42","measurement":{"temperature":82.06,"humidity":85.72,"airPressure":98.88}}
+received: {"weatherStationId":9,"timestamp":"2020-04-28T15:15:42","measurement":{"temperature":86.67,"humidity":95.52,"airPressure":88.86}}
+received: {"weatherStationId":4,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":95.92,"humidity":99.87,"airPressure":83.48}}
+received: {"weatherStationId":5,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":86.15,"humidity":96.18,"airPressure":92.14}}
+received: {"weatherStationId":6,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":80.45,"humidity":98.86,"airPressure":87.73}}
+received: {"weatherStationId":1,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":84.46,"humidity":91.06,"airPressure":80.8}}
+received: {"weatherStationId":2,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":85.92,"humidity":85.18,"airPressure":87.24}}
+received: {"weatherStationId":3,"timestamp":"2020-04-28T15:15:43","measurement":{"temperature":89.75,"humidity":99.27,"airPressure":85.24}}
+received: {"weatherStationId":7,"timestamp":"2020-04-28T15:15:47","measurement":{"temperature":83.99,"humidity":95.96,"airPressure":87.81}}
+received: {"weatherStationId":8,"timestamp":"2020-04-28T15:15:47","measurement":{"temperature":92.86,"humidity":91.29,"airPressure":95.23}}
+received: {"weatherStationId":9,"timestamp":"2020-04-28T15:15:47","measurement":{"temperature":93.82,"humidity":95.16,"airPressure":85.69}}
+received: {"weatherStationId":4,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":89.7,"humidity":95.24,"airPressure":81.41}}
+received: {"weatherStationId":5,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":86.08,"humidity":80.56,"airPressure":93.1}}
+received: {"weatherStationId":6,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":90.49,"humidity":83.33,"airPressure":94.69}}
+received: {"weatherStationId":1,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":93.65,"humidity":91.03,"airPressure":95.21}}
+received: {"weatherStationId":2,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":96.2,"humidity":97.14,"airPressure":93.81}}
+received: {"weatherStationId":3,"timestamp":"2020-04-28T15:15:48","measurement":{"temperature":94.81,"humidity":84.44,"airPressure":83.34}}
+```
+
+In der Datenbank sind natürlich wieder alle 18 Werte gespeichert, wie die folgende Ausgabe zeigt.
+
+```
+ station_id | temperature | humidity | air_pressure |     created_at      
+------------+-------------+----------+--------------+---------------------
+...
+          7 |       83.02 |    95.71 |         97.8 | 2020-04-28 15:15:42
+          8 |       82.06 |    85.72 |        98.88 | 2020-04-28 15:15:42
+          9 |       86.67 |    95.52 |        88.86 | 2020-04-28 15:15:42
+          4 |       95.92 |    99.87 |        83.48 | 2020-04-28 15:15:43
+          5 |       86.15 |    96.18 |        92.14 | 2020-04-28 15:15:43
+          6 |       80.45 |    98.86 |        87.73 | 2020-04-28 15:15:43
+          1 |       84.46 |    91.06 |         80.8 | 2020-04-28 15:15:43
+          2 |       85.92 |    85.18 |        87.24 | 2020-04-28 15:15:43
+          3 |       89.75 |    99.27 |        85.24 | 2020-04-28 15:15:43
+          7 |       83.99 |    95.96 |        87.81 | 2020-04-28 15:15:47
+          8 |       92.86 |    91.29 |        95.23 | 2020-04-28 15:15:47
+          9 |       93.82 |    95.16 |        85.69 | 2020-04-28 15:15:47
+          4 |        89.7 |    95.24 |        81.41 | 2020-04-28 15:15:48
+          5 |       86.08 |    80.56 |         93.1 | 2020-04-28 15:15:48
+          6 |       90.49 |    83.33 |        94.69 | 2020-04-28 15:15:48
+          1 |       93.65 |    91.03 |        95.21 | 2020-04-28 15:15:48
+          2 |        96.2 |    97.14 |        93.81 | 2020-04-28 15:15:48
+          3 |       94.81 |    84.44 |        83.34 | 2020-04-28 15:15:48
+(854 rows)
+```
+
+Darüber hinaus funktioniert auch das Dashboard und die Ausgabe der aktuellsten Werte über die SPA, wie die folgenden zwei Abbildungen demonstrieren.
+
+![Die Ausgabe der Werte im Dashboard funktioniert](doc/test/upscaling/dashboard.png)
+![Die Ausgabe der Werte im SPA-Frontend funktioniert](doc/test/upscaling/webFrontend.png)
+
+Zum Abschluss ist noch der Fall eines Ausfalls eines Persistence-Service von Interesse.
+Wir haben hierzu einfach während des Tests einen Persistence-Service deaktiviert, was dazu führte, dass der andere Service während dieser Zeit die Werte zugeteilt bekam.
+Dies wird auch in den folgenden zwei Logausgaben belegt:
+Der erste Persistence-Service wird um 15:36:52 deaktiviert und um 15:37:02 wieder hochgefahren, wie die folgende Ausgabe zeigt.
+
+```
+Inserted record for {"weatherStationId":4,"timestamp":"2020-04-28T15:36:52","measurement":{"temperature":80.76,"humidity":83.94,"airPressure":92.58}}
+Inserted record for {"weatherStationId":6,"timestamp":"2020-04-28T15:36:52","measurement":{"temperature":85.61,"humidity":86.28,"airPressure":94.54}}
+^C^C^Z
+[2]+  Angehalten              java -jar persist.jar
+(base) .../mom-doppelbauer-schoerghuber/persist/target/alpha$ java -jar persist.jar 
+AMQP receiver listening to queue measurement-records-persistence
+Apr. 28, 2020 3:37:02 NACHM. io.vertx.core.impl.launcher.commands.VertxIsolatedDeployer
+INFORMATION: Succeeded in deploying verticle
+Inserted record for {"weatherStationId":5,"timestamp":"2020-04-28T15:37:02","measurement":{"temperature":90.81,"humidity":85.48,"airPressure":85.66}}
+```
+
+Der zweite Persistence-Service bekam während dieser Zeit alle Nachrichten zugeteilt, da man in der unten zu sehenden Logausgabe nachzählen kann, dass die Daten der Wetterstationen 1 bis 9 eingefügt wurden.
+
+```
+Inserted record for {"weatherStationId":5,"timestamp":"2020-04-28T15:36:52","measurement":{"temperature":92.72,"humidity":80.6,"airPressure":92.27}}
+Inserted record for {"weatherStationId":7,"timestamp":"2020-04-28T15:36:53","measurement":{"temperature":97.06,"humidity":90.93,"airPressure":93.97}}
+Inserted record for {"weatherStationId":8,"timestamp":"2020-04-28T15:36:53","measurement":{"temperature":82.63,"humidity":97.2,"airPressure":89.94}}
+Inserted record for {"weatherStationId":9,"timestamp":"2020-04-28T15:36:53","measurement":{"temperature":81.11,"humidity":93.95,"airPressure":81.68}}
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T15:36:56","measurement":{"temperature":92.65,"humidity":92.97,"airPressure":92.35}}
+Inserted record for {"weatherStationId":3,"timestamp":"2020-04-28T15:36:56","measurement":{"temperature":87.02,"humidity":90.59,"airPressure":97.73}}
+Inserted record for {"weatherStationId":2,"timestamp":"2020-04-28T15:36:56","measurement":{"temperature":96.37,"humidity":91.94,"airPressure":91.93}}
+Inserted record for {"weatherStationId":4,"timestamp":"2020-04-28T15:36:57","measurement":{"temperature":84.68,"humidity":92.35,"airPressure":90.67}}
+Inserted record for {"weatherStationId":5,"timestamp":"2020-04-28T15:36:57","measurement":{"temperature":88.94,"humidity":91.88,"airPressure":89.23}}
+Inserted record for {"weatherStationId":6,"timestamp":"2020-04-28T15:36:57","measurement":{"temperature":92.68,"humidity":90.13,"airPressure":84.87}}
+Inserted record for {"weatherStationId":7,"timestamp":"2020-04-28T15:36:58","measurement":{"temperature":87.21,"humidity":86.13,"airPressure":87.97}}
+Inserted record for {"weatherStationId":8,"timestamp":"2020-04-28T15:36:58","measurement":{"temperature":88.85,"humidity":83.38,"airPressure":83.66}}
+Inserted record for {"weatherStationId":9,"timestamp":"2020-04-28T15:36:58","measurement":{"temperature":99.67,"humidity":96.01,"airPressure":93.43}}
+Inserted record for {"weatherStationId":1,"timestamp":"2020-04-28T15:37:01","measurement":{"temperature":91.66,"humidity":85.08,"airPressure":85.05}}
+Inserted record for {"weatherStationId":2,"timestamp":"2020-04-28T15:37:01","measurement":{"temperature":94.21,"humidity":85.75,"airPressure":99.19}}
+Inserted record for {"weatherStationId":3,"timestamp":"2020-04-28T15:37:01","measurement":{"temperature":96.16,"humidity":98.14,"airPressure":86.41}}
+Inserted record for {"weatherStationId":4,"timestamp":"2020-04-28T15:37:02","measurement":{"temperature":87.01,"humidity":83.01,"airPressure":80.08}}
+Inserted record for {"weatherStationId":6,"timestamp":"2020-04-28T15:37:02","measurement":{"temperature":89.04,"humidity":99.28,"airPressure":98.38}}
+```

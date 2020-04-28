@@ -28,6 +28,7 @@ public class Main {
         List<StationSimulator> stationSimulators = new ArrayList<>();
         stationSimulators.add(createStationSimulator(weatherStationIdOffset));
         stationSimulators.add(createStationSimulator(weatherStationIdOffset));
+        stationSimulators.add(createStationSimulator(weatherStationIdOffset));
         return stationSimulators;
     }
 
