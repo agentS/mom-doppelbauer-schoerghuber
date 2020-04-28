@@ -30,7 +30,9 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 				AmqpConnection amqpConnection = connectionResult.result();
 				var amqpConnectionOptions = new AmqpReceiverOptions()
 					.setAutoAcknowledgement(false)
-					.setDurable(true);
+					.setDurable(true)
+					.setQos("AT_LEAST_ONCE")
+					.setMaxBufferedMessages(this.config().getInteger("maxBufferedMessages"));
 				amqpConnection.createReceiver(
 					this.config().getString("queueName"),
 					amqpConnectionOptions,

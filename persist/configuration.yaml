@@ -13,3 +13,4 @@ persistence:
       password: thunderstorm
       queueName: measurement-records-persistence
       containerId: persistence
+      maxBufferedMessages: 4096
