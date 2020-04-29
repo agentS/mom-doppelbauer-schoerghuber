@@ -3,42 +3,42 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Architektur](#architektur)
-	- [MQTT mit Eclipse Mosqitto](#mqtt-mit-eclipse-mosqitto)
-		- [Collector](#collector)
-		- [QoS](#qos)
-	- [AMQP](#amqp)
-		- [AMQP mit Apache ActiveMQ Artemis](#amqp-mit-apache-activemq-artemis)
-		- [Bestätigungen](#best%c3%a4tigungen)
-		- [Serialisierungsformat](#serialisierungsformat)
-	- [Skalierbarkeit](#skalierbarkeit)
-		- [Collector](#collector-1)
-		- [Frontend und Dashboard](#frontend-und-dashboard)
-		- [Persistence](#persistence)
-		- [Demonstration](#demonstration)
+  - [MQTT mit Eclipse Mosqitto](#mqtt-mit-eclipse-mosqitto)
+    - [Collector](#collector)
+    - [QoS](#qos)
+  - [AMQP](#amqp)
+    - [AMQP mit Apache ActiveMQ Artemis](#amqp-mit-apache-activemq-artemis)
+    - [Bestätigungen](#best%c3%a4tigungen)
+    - [Serialisierungsformat](#serialisierungsformat)
+  - [Skalierbarkeit](#skalierbarkeit)
+    - [Collector](#collector-1)
+    - [Frontend und Dashboard](#frontend-und-dashboard)
+    - [Persistence](#persistence)
+    - [Demonstration](#demonstration)
 - [Wetterstationen](#wetterstationen)
-	- [Nachrichtenformat](#nachrichtenformat)
-	- [Simulator](#simulator)
-	- [ESP8266-basierte Wetterstation](#esp8266-basierte-wetterstation)
+  - [Nachrichtenformat](#nachrichtenformat)
+  - [Simulator](#simulator)
+  - [ESP8266-basierte Wetterstation](#esp8266-basierte-wetterstation)
 - [Collector](#collector-2)
-	- [Design](#design)
-	- [Implementierung](#implementierung)
-	- [Konfiguration](#konfiguration)
+  - [Design](#design)
+  - [Implementierung](#implementierung)
+  - [Konfiguration](#konfiguration)
 - [Frontend](#frontend)
-	- [Implementierung](#implementierung-1)
-	- [Konfiguration](#konfiguration-1)
-	- [React SPA](#react-spa)
+  - [Implementierung](#implementierung-1)
+  - [Konfiguration](#konfiguration-1)
+  - [React SPA](#react-spa)
 - [Persistence](#persistence-1)
-	- [Design](#design-1)
-		- [Behandlung von Duplikaten](#behandlung-von-duplikaten)
-	- [Implementierung und Konfiguration](#implementierung-und-konfiguration)
+  - [Design](#design-1)
+    - [Behandlung von Duplikaten](#behandlung-von-duplikaten)
+  - [Implementierung und Konfiguration](#implementierung-und-konfiguration)
 - [Dashboard](#dashboard)
-	- [Design](#design-2)
-	- [Implementierung und Konfiguration](#implementierung-und-konfiguration-1)
-		- [Asynchronität](#asynchronit%c3%a4t)
+  - [Design](#design-2)
+  - [Implementierung und Konfiguration](#implementierung-und-konfiguration-1)
+    - [Asynchronität](#asynchronit%c3%a4t)
 - [Testfälle](#testf%c3%a4lle)
-	- [ESP8266-basierte Wetterstation und Dashboard](#esp8266-basierte-wetterstation-und-dashboard)
-	- [Erkennung duplizierter Nachrichten](#erkennung-duplizierter-nachrichten)
-	- [Skalierbarkeit](#skalierbarkeit-1)
+  - [ESP8266-basierte Wetterstation und Dashboard](#esp8266-basierte-wetterstation-und-dashboard)
+  - [Erkennung duplizierter Nachrichten](#erkennung-duplizierter-nachrichten)
+  - [Skalierbarkeit](#skalierbarkeit-1)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -54,7 +54,7 @@ Die Persistierung der Wetterdaten in eine PostgreSQL-Datenbank übernehmen die P
 ![Architekturdiagramm](doc/architecture.png)
 
 ## MQTT mit Eclipse Mosqitto
-Message Queuing Telemetry Transport (MQTT) ist ein offenes Netzwerkprotokoll um eine Kommunikation von einer Maschine zu einer Maschine (M2M) zu realisieren. Insbesondere ist es zum Vernetzen von Geräten mit geringen Ressourcen geeignet. Da unser Anwendungsfall darin besteht Daten von Wetterstationen zu verarbeiten und es sich hierbei meist um kleine Stationen mit wenig Ressourcen bzw. Leistung handelt haben wir uns dazu entschieden das MQTT Protokoll zum Übermitteln der Daten von den Wetterstationen zu unseren Services zu verwenden. Hierbei haben wir uns für den MQTT Broker Eclipse-Mosquitto entschieden. Eclipse Mosquitto ist ein quelloffener Nachrichten Broker (EPL/EDL Lizenz). Dieser kann bequem in einem Docker Container gehostet werden.
+Message Queuing Telemetry Transport (MQTT) ist ein offenes Netzwerkprotokoll um eine Kommunikation von einer Maschine zu einer anderen Maschine (M2M) zu realisieren. Insbesondere ist es zum Vernetzen von Geräten mit geringen Ressourcen geeignet. Da unser Anwendungsfall darin besteht Daten von Wetterstationen zu verarbeiten und es sich hierbei meist um kleine Stationen mit wenig Ressourcen bzw. Leistung handelt haben wir uns dazu entschieden das MQTT Protokoll zum Übermitteln der Daten von den Wetterstationen zu unseren Services zu verwenden. Hierbei haben wir uns für den MQTT Broker Eclipse-Mosquitto entschieden. Eclipse Mosquitto ist ein quelloffener Nachrichten Broker (EPL/EDL Lizenz). Dieser kann bequem in einem Docker Container gehostet werden.
 
 Hinter MQTT verbirgt sich eine leichtgewichtige Publish/Subscribe Lösung, bei der man Topics einrichten kann. Über diese Topics können Clients in der Rolle eines Publishers Nachrichten bereitstellen und andere Clients in der Rolle des Subscribers Nachrichten entnehmen.
 
@@ -68,7 +68,7 @@ Der Collector Service übernimmt in unserer Architektur die Aufgabe die Nachrich
 QoS spezifiziert die Semantik des Nachrichtentransfers.
 * Bei **QoS 0** handelt es sich um die niedrigste Stufe. Eine "fire and forget" Semantik.
 * Bei **QoS 1** wird sichergestellt, dass die Nachricht mindestens einmal in der Topic-Queue landet.
-* Bei **QoS 2** garantiert der Broker, dass die Nachricht nur genau einaml ebgelegt wird.
+* Bei **QoS 2** garantiert der Broker, dass die Nachricht nur genau einaml abgelegt wird.
 
 Interessant an dieser Stelle ist, dass man die beide Seiten der Nachrichten Kommunikation berücksichtigen muss: Den Client, welcher die Rolle des Publishers einnimmt und Nachrichten an den Broker mit einem gewissen QoS sendet. Den Client, welcher die Rolle des Subscribers einnimmt und Nachrichten mit einem bestimmten QoS vom Broker bezieht (QoS wird vom Subscriber festgelegt). In dem Fall, dass der Publisher mit einer höheren QoS an den Broker sendet als der Subscriber angegeben hat übermittelt der Broker die Nachricht mit dem geringeren QoS an den Subscriber. Dies bietet dem Client die Möglichkeit die Auswahl des QoS abhängig von der Netzwerkverfügbarkeit sowie der Applikationslogik zu machen.
 
@@ -108,7 +108,7 @@ Deshalb wird Punkt-zu-Punkt-Messaging zur Verteilung von Nachrichten an mehrere 
 
 Das Publish-Subscribe-Model entspricht Topics in MQTT und JMS: Jede der beliebig vielen Subscriptions für ein Topic erhält eine Kopie jeder Nachricht zugestellt.
 Darüber hinaus kann zusätzlich die Durable-Eigenschaft für eine Queue aktiviert werden, die bewirkt, dass eine Kopie einer Nachricht bis zur Zustellung an den Subscriber im Broker gespeichert wird, wodurch Offline-Zeiten der Subscriber (z.B. durch Wartung oder Versionsupgrades) überbrückt werden können.
-Das Publish-Subscribe-Modell wird für die Fronten-Services (Web-Frontend und Dashboard) verwendet, da diese einen Zugriff auf die Wetterdaten aller Wetterstationen ermöglichen sollen.
+Das Publish-Subscribe-Modell wird für die Frontend-Services (Web-Frontend und Dashboard) verwendet, da diese einen Zugriff auf die Wetterdaten aller Wetterstationen ermöglichen sollen.
 Die Queues des Dashboard sind als durable gekennzeichnet, um auch Wetterdaten, die während einer Offline-Zeit einer Dashboard-Instanz eingehen, anzeigen zu können.
 Da das Web-Frontend immer nur die aktuellsten Werte anzeigen soll und Wetterdaten, die während eines Offline-Fensters eingehen, als veraltet gelten, werden wird der Non-Durable-Mode verwendet.
 
@@ -130,7 +130,7 @@ Während dies z.B. für JMS möglich ist, da es möglich ist, sowohl eine Queue 
 Laut Dokumentation wird sich ein Client bei der Verwendung von beiden Routing-Types mit AMQP 1.0 standardmäßig auf die Anycast-Queue verbinden, was sich in Tests auch bewahrheitet hat.
 Für Details hierzu [siehe den Abschnitt "Point-to-Point and Publish-Subscribe Addresses" in der Dokumentation](https://activemq.apache.org/components/artemis/documentation/latest/address-model.html).
 
-Eine Möglichkeit wäre gewesen, den Collector-Service zu erweitern, was jedoch der losen Kopplung, die mit einem Message-Queueing-Protokoll erreicht werden soll, widerspricht.
+Eine Möglichkeit wäre gewesen, den Collector-Service zu erweitern, was jedoch der losen Kopplung, die mit einem Message-Queueing-Protokoll erreicht werden soll, wiederspricht.
 Daher haben wir uns entschieden, für den Anycast-Betrieb eine zusätzliche Adresse zu definieren und mittels eines [Diverts](https://activemq.apache.org/components/artemis/documentation/latest/diverts.html) den Nachrichtenfluss für die ursprüngliche Adresse so aufzuteilen, dass Nachrichten, die für die ursprüngliche Adresse bestimmt sind weiterhin an diese zugestellt werden und zusätzlich an die neue Adresse für den Anycast-Betrieb kopiert werden.
 Hierfür wird die Semantik eines nichtexklusiven Diverts verwendet.
 Da wir einige Stunden zum Finden der Lösung verbracht haben, zeigt sich hier ein Nachteil in der nichtstandardisierten Broker-Konfiguration von AMQP 1.0 im Vergleich zu AMQP 0-9-1.
@@ -224,13 +224,13 @@ Die Demonstration der Skalierbarkeit erfolgt im Rahmen der Dokumentation der Tes
 ## Nachrichtenformat
 Die Wetterstationen liefern pro Nachricht immer einen Wert für die Temperatur, die Luftfeuchtigkeit und den Luftdruck. Hierbei haben wir uns für ein Csv Format entschieden um die Payload möglichst klein zu halten. Die Payload ist wie folgt aufgebaut: `97.13;95.34;82.31`. Die einzelnen Werte sind durch ein Semikolon voneinander getrennt und werden immer in derselben Reihenfolge von den Wetterstationen gesendet.
 
-Diese Payload wird an ein Topic gesendet. Dieses ist mehrstufig aufgebaut und setzt sich aus einem Topic Namen und der Id der Wetterstation zusammen: `sensor-data/1`. Da jede Station ein eigenes Topic hat verwendet der Collector Service ein Wildcard um diese alle zusammen zu empfangen. Dies wird in der Datei `application.json` wiefolgt konfiguriert: `mp.messaging.incoming.mqtt-sensor-data.topic = sensor-data/+`. Das `+` steht hier für ein "Single Level". Es ersetzt also nur genau ein Level der Topic Struktur.
+Diese Payload wird an ein Topic gesendet. Dieses ist mehrstufig aufgebaut und setzt sich aus einem Topic Namen und der Id der Wetterstation zusammen: `sensor-data/1`. Da jede Station ein eigenes Topic hat verwendet der Collector Service ein Wildcard um diese alle zusammen zu empfangen. Dies wird in der Datei `application.properties` wiefolgt konfiguriert: `mp.messaging.incoming.mqtt-sensor-data.topic = sensor-data/+`. Das `+` steht hier für ein "Single Level". Es ersetzt also nur genau ein Level der Topic Struktur.
 
 ## Simulator
 
 Um Nachrichten von Wetterstationen simulieren zu können haben wir einen Simulator entwickelt, welcher im Abstand von fünf Sekunden Nachrichten an den MQTT Broker mit Zufallswerten sendet.
 
-Zur Umsetzung haben wir uns für das Framework Eclipse Paho entschieden. Es handelt sich hierbei um eine open-source Client Implementierung von MQTT. Die Implementierung ist nachfolgend dargestellt. Zuerst wird eine Verbindung zum MQTT  Broker hergestellt und anschließend Nachrichten mittels `call()` mit einem QoS 0 an den Broker gesendet.
+Zur Umsetzung haben wir uns für das Framework Eclipse **Paho** entschieden. Es handelt sich hierbei um eine open-source Client Implementierung von MQTT. Die Implementierung ist nachfolgend dargestellt. Zuerst wird eine Verbindung zum MQTT  Broker hergestellt und anschließend Nachrichten mittels Aufruf der Methode `call()` mit einem QoS 0 an den Broker gesendet.
 
 ```java
 public class MqttMessageGenerator implements Callable<Void> {
@@ -415,10 +415,10 @@ mqtt.topic-prefix = sensor-data/
 
 # Frontend
 Die Aufgabe des Frontend-Services ist es, sich als Subscriber für Wetterdaten, die über AMQP übertragen werden, zu registrieren und diese über einen WebSocket Enpoint nach außen zur Verfügung zu stellen. Weiters stellt der Frontend-Service eine REST Schnitstelle zur Verfügung über welche neue Wetterstationen angelegt und deren Stations Name geändert werden kann. 
-Der Frontend-Service ist mit [Quarkus](https://quarkus.io/) und mit dessen Implementierung von [MicroProfile Reactive Messaging 1.0](https://download.eclipse.org/microprofile/microprofile-reactive-messaging-1.0/microprofile-reactive-messaging-spec.pdf), welche auf der [SmallRye-Implementierung](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/) beruht, realisiert. Die WebSockets wurden mittels der Undertow-Websockets implementierung realisiert.
+Der Frontend-Service ist mit [Quarkus](https://quarkus.io/) und mit dessen Implementierung von [MicroProfile Reactive Messaging 1.0](https://download.eclipse.org/microprofile/microprofile-reactive-messaging-1.0/microprofile-reactive-messaging-spec.pdf), welche auf der [SmallRye-Implementierung](https://smallrye.io/smallrye-reactive-messaging/smallrye-reactive-messaging/2/) beruht, realisiert. Die WebSockets wurden mittels der Undertow-Websockets Implementierung realisiert.
 
 ## Implementierung
-Um die Anzahl der Nachrichten, welche über den WebSocket gesendet werden auf der Client Seite klein zu halten bietet der Frontend-Service einen Server Endpunkt `@ServerEndpoint("/stations/socket/{stationId}")` über welchen sich ein Client mit einem EventListener für eine bestimmte Station (über die Id der Wetterstation) registrieren kann. Dieser `WeatherStationSocket` verwendet für die Verwaltung der Client Sessions einen `SocketManager`. Hierbei handelt es sich um ein Cdi Bean mit ApplicationScope.
+Um die Anzahl der Nachrichten, welche über den WebSocket gesendet werden auf der Client Seite klein zu halten bietet der Frontend-Service einen Server Endpunkt `@ServerEndpoint("/stations/socket/{stationId}")` über welchen sich ein Client für eine bestimmte Station (über die Id der Wetterstation) registrieren kann. Dieser `WeatherStationSocket` verwendet für die Verwaltung der Client Sessions einen `SocketManager`. Hierbei handelt es sich um ein Cdi Bean mit ApplicationScope.
 
 ```java
 @ServerEndpoint("/stations/socket/{stationId}")
@@ -449,7 +449,7 @@ public class WeatherStationSocket {
 }
 ```
 
-Der `WebSocketManager` verwaltet die Client Sessions und speichert in für welche Stationen sich ein Client registriert hat. Durch den Aufruf der `broadcast` Methode wird die übergebene Nachricht an alle Clients gesendet, welche sich für die betroffene Station registriert haben.
+Der `WebSocketManager` verwaltet die Client Sessions und speichert für welche Stationen sich ein Client registriert hat. Durch den Aufruf der `broadcast` Methode wird die übergebene Nachricht an alle Clients gesendet, welche sich für die betroffene Station registriert haben.
 
 ```java
 @ApplicationScoped
@@ -496,7 +496,7 @@ public class WebSocketManager implements SocketManager {
 }
 ```
 
-Der `AmqpConsumer` ist ein Subscriber und empfängt die Nachrichten aus der AMQP Queue `@Incoming("measurement-records")`. Da es in diesem Fall egal ist, wenn eine Nachricht verloren geht, und somit eventuell nicht jede Nachricht im Web Frontend angezeigt wird, haben wir uns dazu entschieden keine Bestätigungs Strategie zu verfolgen `@Acknowledgment(Acknowledgment.Strategy.NONE)`. Die empfangenen Nachrichten werden anschließend mittels JsonB deserialisiert und die Id der Wetterstation extrahiert. Anschließend wird mittels des `socketManager` eine Nachricht an alle Clients gesendet, welche die Sensordaten der jeweiligen Station im Json Format beinhaltet.
+Der `AmqpConsumer` ist ein Subscriber und empfängt die Nachrichten aus der AMQP Queue `@Incoming("measurement-records")`. Da es in diesem Fall nicht wichtig ist, wenn eine Nachricht verloren geht, und somit eventuell nicht jede Nachricht im Web Frontend angezeigt wird, haben wir uns dazu entschieden keine Bestätigungs Strategie zu verfolgen `@Acknowledgment(Acknowledgment.Strategy.NONE)`. Die empfangenen Nachrichten werden anschließend mittels JsonB deserialisiert und die Id der Wetterstation extrahiert. Anschließend wird mittels des `socketManager` eine Nachricht an alle Clients gesendet, welche die Sensordaten der jeweiligen Station im Json Format beinhaltet.
 
 ```java
 @ApplicationScoped
@@ -520,7 +520,7 @@ public class AmqpConsumer {
 ```
 
 ## Konfiguration
-Konfiguriert werden muss die Datenbank Verbindung zur PostgreSql Datenbank, in welcher die Stationsdaten verwaltet werden. Weiters werden die Connectoren, welche die Channels mit den Brokern verbinden, in der Konfiguration festgelegt. Die Festlegung der Container-ID dient wieder zur besseren Identifizierbarkeit am AMQP-Broker. Weiters wird festgelegt, dass die Queue nicht durable ist, also die Nachrichten bei Verbindungsabrissen nicht bestehen bleiben
+Konfiguriert werden muss die Datenbank Verbindung zur PostgreSql Datenbank, in welcher die Stationsdaten verwaltet werden. Weiters werden die Connectoren, welche die Channels mit den Brokern verbinden, in der Konfiguration festgelegt. Die Festlegung der Container-ID dient wieder zur besseren Identifizierbarkeit am AMQP-Broker. Weiters wird festgelegt, dass die Queue nicht durable ist, also die Nachrichten bei Verbindungsabrissen nicht bestehen bleiben.
 
 ```properties
 quarkus.datasource.db-kind = postgresql
