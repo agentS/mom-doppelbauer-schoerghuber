@@ -28,12 +28,14 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 				startFuture.fail(connectionResult.cause());
 			} else {
 				AmqpConnection amqpConnection = connectionResult.result();
-				var amqpConnectionOptions = new AmqpReceiverOptions()
+				var amqpReceiverOptions = new AmqpReceiverOptions()
 					.setAutoAcknowledgement(false)
-					.setDurable(true);
+					.setDurable(true)
+					.setQos("AT_LEAST_ONCE")
+					.setMaxBufferedMessages(this.config().getInteger("maxBufferedMessages"));
 				amqpConnection.createReceiver(
 					this.config().getString("queueName"),
-					amqpConnectionOptions,
+					amqpReceiverOptions,
 					receiverCreationResult -> {
 						if (receiverCreationResult.failed()) {
 							startFuture.fail(receiverCreationResult.cause());
@@ -52,7 +54,7 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 	}
 
 	private void handleWeatherRecordMessage(AmqpMessage amqpMessage) {
-		JsonObject body = amqpMessage.bodyAsJsonObject();
+		var body = new JsonObject(amqpMessage.bodyAsString());
 		this.eventBus.send(
 			EventBusAddresses.PERSISTENCE_POSTGRESQL,
 			body,
@@ -64,6 +66,7 @@ public class AmqpConsumerVerticle extends AbstractVerticle {
 						response.cause().printStackTrace(System.err);
 					} else {
 						amqpMessage.accepted();
+						System.out.println("Duplicated record not inserted for " + body);
 					}
 				} else {
 					amqpMessage.accepted();

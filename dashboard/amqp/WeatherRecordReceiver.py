@@ -33,7 +33,7 @@ class WeatherRecordReceiver(MessagingHandler):
 		)
 
 	def on_message(self, event):
-		weather_record_dto = create_weather_record_dto_from_json(event.message.body.decode("utf-8"))
+		weather_record_dto = create_weather_record_dto_from_json(event.message.body)
 		self.received += 1
 		if weather_record_dto.weather_station_id == self.weather_station_id:
 			self.record_received_callback(weather_record_dto)
